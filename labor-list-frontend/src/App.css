@@ -1,0 +1,300 @@
+/* =========================================================
+   LABOR LIST - ESTILOS GLOBAIS E PREMIUM (100% COMPLETO)
+   ========================================================= */
+
+* { box-sizing: border-box; }
+
+body, html { 
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+    font-size: 14px; /* O SEGREDO DO ZOOM: Define a base um pouco menor para caber mais dados na tela */
+    margin: 0; 
+    padding: 0; 
+    width: 100%;
+    height: 100%;
+    background: #f4f7fa; 
+    color: #2c3e50; 
+    overflow: hidden; 
+}
+
+/* Base do React */
+#root, .app-container {
+    display: flex;
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
+}
+
+/* --- SIDEBAR MENU --- */
+.sidebar { 
+    width: 250px; /* Reduzido de 280 para 250 para dar mais espaço à Skill Matrix */
+    min-width: 250px;
+    background: #1e2b3c; 
+    color: white; 
+    display: flex; 
+    flex-direction: column; 
+    box-shadow: 4px 0 15px rgba(0,0,0,0.05); 
+    z-index: 10; 
+}
+
+.sidebar-header { 
+    padding: 20px 15px; 
+    text-align: center; 
+    background: #16202c;
+    border-bottom: 1px solid #2c3e50; 
+}
+
+.sidebar-header h2 { 
+    margin: 0; 
+    font-size: 1.6em; 
+    font-weight: 900; 
+    letter-spacing: 2px; 
+    color: #3498db; 
+    text-transform: uppercase; 
+}
+
+.sidebar-header span { 
+    font-size: 0.7em; 
+    color: #95a5a6; 
+    letter-spacing: 1px; 
+    text-transform: uppercase; 
+    display: block;
+    margin-top: 5px;
+}
+
+.sidebar-menu { 
+    list-style: none; 
+    padding: 0; 
+    margin: 0; 
+    flex: 1; 
+    overflow-y: auto; 
+}
+
+.sidebar-menu li { 
+    padding: 14px 20px; 
+    cursor: pointer; 
+    border-bottom: 1px solid #27374d; 
+    transition: all 0.3s ease; 
+    display: flex; 
+    align-items: center; 
+    gap: 15px; 
+    font-size: 1em;
+    font-weight: 500;
+    color: #bdc3c7;
+}
+
+.sidebar-menu li:hover { 
+    background: #2c3e50; 
+    color: #fff; 
+    padding-left: 25px; 
+}
+
+.sidebar-menu li.active { 
+    background: #3498db; 
+    color: #fff; 
+    border-left: 5px solid #f1c40f; 
+    padding-left: 20px; 
+    font-weight: 700; 
+    box-shadow: inset 0 0 10px rgba(0,0,0,0.1); 
+}
+
+/* --- MAIN CONTENT & PAGES --- */
+.main-content { 
+    flex: 1; 
+    overflow-y: auto; 
+    padding: 20px; /* Reduzido de 30px (Mais espaço para tabelas) */
+    position: relative;
+}
+
+.page { 
+    background: white; 
+    padding: 25px; /* Reduzido de 35px */
+    border-radius: 12px; 
+    box-shadow: 0 8px 30px rgba(0,0,0,0.04); 
+    min-height: calc(100vh - 40px); 
+    animation: fadeIn 0.4s ease-out;
+}
+
+.page-title { 
+    margin-top: 0; 
+    margin-bottom: 25px; 
+    font-size: 1.8em; 
+    font-weight: 800;
+    color: #1e2b3c; 
+    border-bottom: 3px solid #f4f7fa; 
+    padding-bottom: 12px; 
+}
+
+@keyframes fadeIn { 
+    from { opacity: 0; transform: translateY(15px); } 
+    to { opacity: 1; transform: translateY(0); } 
+}
+
+/* --- DASHBOARD CHARTS & STATS --- */
+.stats-bar { display: flex; gap: 12px; margin-bottom: 25px; flex-wrap: wrap; }
+
+.stat-card { 
+    background: #34495e; 
+    color: white; 
+    padding: 15px 20px; /* Mais compacto */
+    border-radius: 8px; 
+    flex: 1; 
+    min-width: 160px; 
+    text-align: center; 
+    box-shadow: 0 4px 10px rgba(0,0,0,0.1); 
+}
+
+.stat-card h3 { margin: 0; font-size: 0.85em; text-transform: uppercase; opacity: 0.8; }
+.stat-card .value { font-size: 2.2em; font-weight: bold; margin-top: 8px; color: #3498db; }
+
+.charts-container { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 20px; }
+
+.chart-box { 
+    background: #fff; padding: 20px; border-radius: 8px; border: 1px solid #e0e0e0; 
+    box-shadow: 0 2px 8px rgba(0,0,0,0.02); height: 320px; /* Reduzido de 350px */
+    display: flex; flex-direction: column; 
+}
+
+.chart-box h4 { margin: 0 0 15px 0; text-align: center; color: #7f8c8d; text-transform: uppercase; font-size: 0.85em; flex-shrink: 0; }
+.canvas-wrapper { position: relative; flex-grow: 1; width: 100%; min-height: 0; }
+
+/* --- GESTÃO DE EQUIPE (MÁGICA DAS LINHAS) --- */
+.leader-panel-section { background: #fff; padding: 20px; border: 2px solid #2980b9; border-radius: 12px; margin-bottom: 25px; }
+.filter-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 20px; }
+.leader-card { background: white; margin-bottom: 15px; border-radius: 12px; }
+
+.leader-name-header { 
+    background: #f8f9fa; color: #2c3e50; border: 1px solid #ddd; padding: 12px 15px; 
+    border-radius: 8px; margin-bottom: 15px; font-size: 1.05em; 
+    display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; 
+}
+.leader-badges-container { display: flex; flex-wrap: wrap; gap: 8px; }
+.badge-count { padding: 4px 10px; border-radius: 20px; font-size: 0.8em; font-weight: bold; border: 1px solid transparent; }
+.bc-ativos { background: #d5f5e3; color: #1e8449; border-color: #2ecc71; }
+.bc-faltas { background: #fadbd8; color: #922b21; border-color: #e74c3c; }
+.bc-saida { background: #fdebd0; color: #9c640c; border-color: #f1c40f; }
+.bc-ferias { background: #d6eaf8; color: #1f618d; border-color: #3498db; }
+.bc-afastado { background: #e5e7e9; color: #34495e; border-color: #95a5a6; }
+
+/* Linhas Clicáveis (Hover Premium) */
+.hover-row { cursor: pointer; transition: all 0.2s ease; }
+.hover-row:hover { background-color: #f8fbfd !important; transform: scale(1.001); box-shadow: 0 4px 10px rgba(0,0,0,0.03); border-radius: 6px; z-index: 2; position: relative;}
+.hover-row.expanded { background-color: #ebf5fb; border-left: 4px solid #3498db; }
+
+/* Gavetas Expansíveis */
+.expand-drawer { background: #fdfefe; border: 1px dashed #bdc3c7; padding: 20px; border-radius: 0 0 10px 10px; box-shadow: inset 0 2px 10px rgba(0,0,0,0.02); }
+.drawer-form { background: white; border: 1px solid #eee; padding: 15px 20px; border-radius: 8px; margin-bottom: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.03); animation: fadeIn 0.3s; }
+
+/* --- MATRIZ E TABELAS --- */
+.skill-matrix-section { background: #fff4e5; padding: 15px; border: 2px solid #f39c12; border-radius: 8px; margin-bottom: 25px; }
+.matrix-table { width: 100%; border-collapse: separate; border-spacing: 0; margin-top: 15px; }
+.matrix-table th { background: #f8f9fa; color: #7f8c8d; padding: 12px 10px; font-size: 0.85em; text-transform: uppercase; text-align: left; border-bottom: 2px solid #e2e8f0; font-weight: 800; }
+.matrix-table td { padding: 10px; border-bottom: 1px solid #edf2f7; font-size: 0.9em; vertical-align: middle; } /* Reduzido de 15px */
+
+/* --- STATUS E BADGES (TEXTOS) --- */
+.status-polivalente { color: #f1c40f !important; font-weight: 700; text-shadow: 0px 0px 1px rgba(0,0,0,0.3); } 
+.status-absenteismo { color: #e74c3c !important; font-weight: 700; } 
+.status-extra { color: #00ced1 !important; font-weight: 700; }      
+.status-ferias { color: #95a5a6 !important; font-style: italic; font-weight: 700; }
+.status-earlyexit { color: #e67e22 !important; font-style: italic; font-weight: 700; }
+.status-afastamento { color: #8e44ad !important; text-decoration: line-through; opacity: 0.6; }
+.status-normal { color: #2980b9; }
+
+.tag-vinculo { font-size: 0.7em; padding: 3px 6px; border-radius: 4px; margin-left: 6px; vertical-align: middle; font-weight: 800; letter-spacing: 0.5px; }
+.tag-efetivo { background: #e3f2fd; color: #2980b9; }
+.tag-temp { background: #fef9e7; color: #d35400; }
+.tag-ctd { background: #f4f6f7; color: #7f8c8d; }
+
+/* --- CAIXINHAS DE SKILL (TREINAMENTOS) --- */
+.status-container { display: flex; justify-content: space-between; gap: 2px; flex-wrap: nowrap; }
+.badge-skill { flex: 1; text-align: center; padding: 4px 0; border-radius: 4px; font-size: 0.7em; font-weight: bold; border: 1px solid #ccc; min-width: 0; white-space: nowrap; overflow: hidden; }
+.skill-trained { background: #27ae60; color: white; border-color: #1e8449; }
+.skill-empty { background: #f8f9fa; color: #ccc; border-color: #ddd; }
+
+/* --- HEATMAP & YIELDS --- */
+.yield-row-container { display: flex; justify-content: space-between; gap: 2px; margin-top: 4px; }
+.yield-dot { flex: 1; height: 8px; border-radius: 2px; background: #eee; border: 1px solid #ddd; position: relative; cursor: help; }
+.yield-dot-green { background: #27ae60 !important; border-color: #1e8449; }
+.yield-dot-yellow { background: #f1c40f !important; border-color: #9a7d0a; }
+.yield-dot-red { background: #e74c3c !important; border-color: #943126; }
+
+.heatmap-section { background: #f4f6f7; padding: 20px; border: 2px solid #34495e; border-radius: 8px; margin-bottom: 25px; }
+.yield-green-border { border: 3px solid #27ae60 !important; color: #1e8449; }
+.yield-yellow-border { border: 3px solid #f1c40f !important; color: #9a7d0a; }
+.yield-red-border { border: 3px solid #e74c3c !important; color: #943126; }
+
+/* --- FORMS, BOTOES & MULTI-SELECT --- */
+.management-layout { display: grid; grid-template-columns: 2fr 1fr; gap: 20px; margin-bottom: 25px; }
+.management-box { padding: 15px; border: 1px solid #ddd; border-radius: 8px; background: #fafafa; height: fit-content; }
+.grid-inputs { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+
+/* Reduzido de 12px 15px para 8px 12px (Campos mais compactos, industriais) */
+input, select, button, textarea { width: 100%; padding: 8px 12px; border: 1px solid #dcdde1; border-radius: 6px; font-size: 0.9em; outline: none; transition: border 0.3s ease; }
+input:focus, select:focus { border-color: #3498db; box-shadow: 0 0 0 3px rgba(52,152,219,0.1); }
+button { background: #3498db; color: white; cursor: pointer; border: none; font-weight: 700; transition: all 0.2s ease; text-transform: uppercase; letter-spacing: 0.5px; }
+button:hover { background: #2980b9; transform: translateY(-1px); box-shadow: 0 4px 8px rgba(41,128,185,0.2); }
+
+.btn-success { background: #27ae60; }
+.btn-danger { background: #e74c3c; }
+
+.posto-selection-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 8px; background: #fff; padding: 10px; border: 1px solid #ddd; border-radius: 6px; max-height: 250px; overflow-y: auto; }
+.posto-cell { padding: 6px; text-align: center; background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px; font-size: 0.75em; font-weight: bold; cursor: pointer; transition: 0.2s; user-select: none; }
+.posto-cell:hover { background: #e9ecef; }
+.posto-cell.selected { background: #3498db; color: white; border-color: #2980b9; }
+
+/* --- GRUPOS DE BOTÕES DE AÇÃO --- */
+.btn-status-group { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+.btn-status { font-size: 0.8em; padding: 6px 10px; border-radius: 4px; border: 1px solid #dcdde1; background: white; color: #2c3e50; font-weight: 600; flex: 1; min-width: 110px; transition: all 0.2s ease; }
+.btn-status:hover { background: #f4f6f7; border-color: #bdc3c7; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+.btn-status.active { background: #3498db; color: white; border-color: #3498db; }
+
+/* Layouts Internos de Formulários */
+.quick-alloc-box { margin-top: 10px; padding: 10px; background: #fff; border: 1px solid #3498db; border-radius: 6px; margin-bottom: 10px; }
+.quick-alloc-grid { display: grid; grid-template-columns: 1fr 1fr auto; gap: 5px; align-items: center; }
+
+.date-grid-layout { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: end; }
+.date-grid-layout-vac { display: grid; grid-template-columns: 1fr 1fr auto; gap: 10px; align-items: end; }
+.early-exit-grid-new { display: grid; grid-template-columns: 100px 1fr auto; gap: 10px; align-items: end; }
+.date-grid-layout label, .early-exit-grid-new label { font-size: 0.75em; font-weight: bold; }
+
+/* --- ABAS INTERNAS (CONFIGURAÇÕES) --- */
+.internal-tabs { display: flex; gap: 10px; margin-bottom: 20px; border-bottom: 2px solid #e0e0e0; padding-bottom: 12px; }
+.internal-tab-btn { background: #fff; color: #7f8c8d; border: 1px solid #e0e0e0; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-weight: bold; transition: all 0.3s ease; display: flex; align-items: center; justify-content: center; font-size: 0.95em; }
+.internal-tab-btn.active { background: #3498db; color: white; border-color: #3498db; box-shadow: 0 2px 8px rgba(52, 152, 219, 0.3); }
+.setup-box-full { background: #fff; padding: 20px; border-radius: 8px; border: 1px solid #ddd; margin-bottom: 15px;}
+
+/* --- PLANEJAMENTO DE HE --- */
+.planning-section { background: #fcf3cf; padding: 15px; border: 2px solid #f1c40f; border-radius: 8px; margin-bottom: 20px; }
+.planning-header { display: grid; grid-template-columns: 1fr 1.2fr 1fr auto; gap: 12px; margin-bottom: 20px; align-items: end; background: #fff; padding: 15px; border-radius: 8px; border: 1px solid #f1c40f; }
+.planning-row { background: white; border: 1px solid #f1c40f; border-radius: 8px; margin-bottom: 15px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+.planning-row-header { background: #f1c40f; color: #2c3e50; padding: 10px 15px; display: flex; justify-content: space-between; align-items: center; font-weight: 800; border-bottom: 2px solid #d4ac0d; font-size: 0.9em; }
+.planning-row-header .highlight { background: #2c3e50; color: #fff; padding: 3px 8px; border-radius: 4px; margin-left: 10px; font-size: 0.85em; }
+.planning-sectors-container { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; padding: 15px; }
+.planning-sector-box { background: #fdfdfd; padding: 10px; border-radius: 6px; border: 1px solid #e0e0e0; box-shadow: inset 0 0 5px rgba(0,0,0,0.02); }
+.planning-sector-box h5 { margin: 0 0 10px 0; color: #2c3e50; text-transform: uppercase; font-size: 0.85em; text-align: center; border-bottom: 2px solid #f1c40f; padding-bottom: 4px; }
+.sector-leader-config { margin-bottom: 12px; background: #f1f4f7; padding: 6px; border-radius: 4px; }
+.planning-station-item { margin-bottom: 8px; }
+.planning-select { font-size: 0.8em !important; padding: 4px !important; height: 32px; border: 1px solid #bdc3c7 !important; background: #fff; }
+.btn-add-line { background: #27ae60; width: auto; padding: 8px 20px; font-size: 0.9em; box-shadow: 0 2px 4px rgba(39, 174, 96, 0.3); }
+.btn-remove-line { background: #e74c3c; width: auto; padding: 5px 10px; font-size: 0.75em; color: white; border-radius: 4px; }
+
+/* --- MODAIS DE LOGIN E ALERTAS --- */
+.modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 9999; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(3px); }
+.modal-box { background: white; padding: 25px; border-radius: 10px; width: 340px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); animation: fadeIn 0.2s; }
+.modal-box h3 { margin-top: 0; color: #2c3e50; font-size: 1.3em;}
+
+/* --- RESPONSIVIDADE --- */
+@media (max-width: 768px) {
+    .app-container { flex-direction: column; overflow-y: auto; }
+    .sidebar { width: 100%; height: auto; flex-direction: row; flex-wrap: wrap; min-height: fit-content; }
+    .sidebar-menu { display: flex; overflow-x: auto; flex-wrap: nowrap; }
+    .sidebar-menu li { padding: 10px; font-size: 0.85em; white-space: nowrap; border-bottom: none; border-right: 1px solid #34495e; }
+    .main-content { min-height: calc(100vh - 60px); overflow: visible; padding: 10px; }
+    .management-layout { grid-template-columns: 1fr; }
+    .charts-container { grid-template-columns: 1fr; }
+}
+
+@keyframes pulse {
+    0% { box-shadow: 0 0 0 0 rgba(46, 204, 113, 0.7); }
+    70% { box-shadow: 0 0 0 6px rgba(46, 204, 113, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(46, 204, 113, 0); }
+}
