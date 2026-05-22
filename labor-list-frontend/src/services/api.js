@@ -11,8 +11,8 @@ const api = axios.create({
     baseURL: API_URL
 });
 
+// Interceptor de requisição: anexa o token JWT automaticamente
 api.interceptors.request.use(config => {
-    // Busca a chave EXATA que o AuthContext salva
     const token = localStorage.getItem('token');
     
     if (token) {
@@ -20,5 +20,24 @@ api.interceptors.request.use(config => {
     }
     return config;
 });
+
+// Interceptor de resposta: trata erros 401 (token expirado ou inválido)
+api.interceptors.response.use(
+    response => response, // Respostas bem-sucedidas seguem normalmente
+    error => {
+        // Se a requisição retornou 401 (não autorizado), força o logout
+        if (error.response && error.response.status === 401) {
+            // Remove os dados de autenticação
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            delete api.defaults.headers.Authorization;
+
+            // Redireciona para a tela de login
+            window.location.href = '/login';
+        }
+        // Propaga o erro para quem chamou a API
+        return Promise.reject(error);
+    }
+);
 
 export default api;
