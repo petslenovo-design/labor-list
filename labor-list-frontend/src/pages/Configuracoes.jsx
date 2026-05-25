@@ -17,8 +17,16 @@ export default function Configuracoes() {
 
     const [opForm, setOpForm] = useState({ nome: '', linha_id: '', vinculo: 'Efetivo', turno: 'T1', lider_id: '' });
 
-    // Transferência
-    const [transfForm, setTransfForm] = useState({ colaborador_id: '', novo_lider_id: '', novo_turno: '', nova_linha_id: '' });
+    // Transferência / Edição
+    const [transferModal, setTransferModal] = useState({
+        visivel: false,
+        operadorId: null,
+        operadorNome: '',
+        novoLiderId: '',
+        novoTurno: '',
+        novaLinhaId: '',
+        novoVinculo: ''   // NOVO campo para vínculo
+    });
 
     // Exclusão de Líder
     const [remLiderId, setRemLiderId] = useState('');
@@ -28,17 +36,14 @@ export default function Configuracoes() {
     const [selecaoModal, setSelecaoModal] = useState({
         visivel: false,
         titulo: '',
-        lista: [],           // lista de objetos { id, nome, ... }
-        acaoConfirmar: null, // função a chamar ao clicar em um item
+        lista: [],
+        acaoConfirmar: null,
         campoBusca: 'nome',
-        mensagemConfirmacao: null // mensagem opcional para exibir antes da ação
+        mensagemConfirmacao: null
     });
 
     // MODAL DE CONFIRMAÇÃO GENÉRICO
     const [confirmModal, setConfirmModal] = useState({ isOpen: false, message: '', onConfirm: null, onCancel: null });
-
-    // MODAL DE TRANSFERÊNCIA (detalhes adicionais)
-    const [transferModal, setTransferModal] = useState({ visivel: false, operadorId: null, operadorNome: '' });
 
     const carregarDados = () => {
         api.get('/carregar_tudo').then(res => setDb(res.data)).catch(() => toast.error("Erro ao carregar dados"));
@@ -62,12 +67,10 @@ export default function Configuracoes() {
         }
     };
 
-    // Função para abrir modal de confirmação genérico
     const showConfirm = (message, onConfirm, onCancel = null) => {
         setConfirmModal({ isOpen: true, message, onConfirm, onCancel });
     };
 
-    // Função para abrir modal de seleção
     const abrirSelecao = (titulo, lista, aoSelecionar, mensagemConfirmacao = null) => {
         setSelecaoModal({
             visivel: true,
@@ -103,13 +106,7 @@ export default function Configuracoes() {
         showConfirm(
             `⭐ Confirmar promoção de "${operador.nome}" para Líder?\n\nSerá criado acesso LDAP com login: ${loginLdap}\nO operador passará a ter cargo de Líder e poderá gerenciar sua própria equipe.`,
             async () => {
-                // 1. Atualizar cargo do colaborador para 'Líder'
-                // Nota: para atualizar, precisamos de uma rota específica ou usar 'salvar_colaborador' com id.
-                // Como 'salvar_colaborador' atualmente é INSERT, criaremos uma ação separada 'atualizar_colaborador'.
-                // Por simplicidade, vamos usar 'salvar_colaborador' com id e cargo.
-                // O backend deve tratar UPDATE se id existir.
                 await handleAction('salvar_colaborador', { id: operador.id, cargo: 'Líder', nome: operador.nome, vinculo: operador.vinculo, turno: operador.turno }, null);
-                // 2. Criar acesso LDAP
                 await handleAction('salvar_usuario_acesso', { nome: operador.nome, login_ldap: loginLdap, perfil: 'LIDER' }, null);
                 toast.success(`Operador ${operador.nome} agora é Líder!`);
                 carregarDados();
@@ -118,27 +115,44 @@ export default function Configuracoes() {
         setSelecaoModal({ ...selecaoModal, visivel: false });
     };
 
-    const aoSelecionarTransferir = (operador) => {
-        setTransferModal({ visivel: true, operadorId: operador.id, operadorNome: operador.nome });
-        setSelecaoModal({ ...selecaoModal, visivel: false });
-    };
+const aoSelecionarTransferir = (operador) => {
+    setTransferModal({
+        visivel: true,
+        operadorId: operador.id,
+        operadorNome: operador.nome,
+        novoLiderId: operador.lider_id || '',
+        novoTurno: operador.turno || '',
+        novaLinhaId: operador.linha_principal_id || '',  
+        novoVinculo: operador.vinculo || ''
+    });
+    setSelecaoModal({ ...selecaoModal, visivel: false });
+};
 
     const confirmarTransferencia = () => {
-        const { operadorId, novoLiderId, novoTurno, novaLinhaId } = transferModal;
-        if (!operadorId || !novoLiderId || !novoTurno || !novaLinhaId) {
-            toast.error("Preencha todos os campos da transferência!");
+        const { operadorId, novoLiderId, novoTurno, novaLinhaId, novoVinculo } = transferModal;
+        if (!operadorId || !novoLiderId || !novoTurno || !novaLinhaId || !novoVinculo) {
+            toast.error("Preencha todos os campos da transferência, incluindo o vínculo!");
             return;
         }
         showConfirm(
-            `🔄 Confirmar transferência do operador "${transferModal.operadorNome}" para o novo líder e linha?`,
+            `🔄 Confirmar transferência/edição do operador "${transferModal.operadorNome}"?`,
             async () => {
                 await handleAction('transferir_operador', {
                     colaborador_id: operadorId,
                     novo_lider_id: novoLiderId,
                     novo_turno: novoTurno,
-                    nova_linha_id: novaLinhaId
+                    nova_linha_id: novaLinhaId,
+                    novo_vinculo: novoVinculo   // envia o novo vínculo
                 }, () => {
-                    setTransferModal({ visivel: false, operadorId: null, operadorNome: '', novoLiderId: '', novoTurno: '', novaLinhaId: '' });
+                    setTransferModal({
+                        visivel: false,
+                        operadorId: null,
+                        operadorNome: '',
+                        novoLiderId: '',
+                        novoTurno: '',
+                        novaLinhaId: '',
+                        novoVinculo: ''
+                    });
                 });
             }
         );
@@ -209,7 +223,8 @@ export default function Configuracoes() {
                         <div style={{ display: 'grid', gridTemplateColumns: user.perfil === 'LIDER' ? '1fr 1fr' : '1fr 1fr 1fr', gap: '10px', marginBottom: '10px' }}>
                             <select value={opForm.vinculo} onChange={e => setOpForm({ ...opForm, vinculo: e.target.value })}>
                                 <option value="Efetivo">Efetivo</option>
-                                <option value="Temporário">Temporário</option>
+                                <option value="Temporário Manpower">Temporário Manpower</option>
+                                <option value="Temporário We Can">Temporário We Can</option>
                                 <option value="CTD">CTD</option>
                             </select>
                             <select value={opForm.turno} onChange={e => setOpForm({ ...opForm, turno: e.target.value })}>
@@ -235,7 +250,7 @@ export default function Configuracoes() {
                         }}>+ Salvar Operador</button>
                     </div>
 
-                    {/* Seção de Ações sobre Operadores (Excluir, Promover, Transferir) com botões que abrem modal de seleção */}
+                    {/* Seção de Ações sobre Operadores */}
                     <div className="setup-box-full" style={{ borderLeft: '4px solid #2980b9' }}>
                         <h4>⚙️ Gerenciar Operadores</h4>
                         <div style={{ display: 'flex', gap: '15px', flexWrap: 'wrap', marginBottom: '15px' }}>
@@ -267,12 +282,12 @@ export default function Configuracoes() {
                             <button style={{ background: '#f39c12', width: 'auto' }} onClick={() => {
                                 if (operadoresVisiveis.length === 0) return toast.error("Nenhum operador disponível para transferência.");
                                 abrirSelecao(
-                                    "🔄 Transferir Operador",
+                                    "🔄 Transferir / Editar Operador",
                                     operadoresVisiveis,
                                     (op) => aoSelecionarTransferir(op),
-                                    "Selecione o operador que será transferido para outro líder/linha/turno."
+                                    "Selecione o operador que deseja transferir ou editar (líder, turno, linha e vínculo)."
                                 );
-                            }}>🔄 Transferir Operador</button>
+                            }}>🔄 Transferir / Editar Operador</button>
                         </div>
                     </div>
 
@@ -355,14 +370,14 @@ export default function Configuracoes() {
                 </div>
             )}
 
-            {/* MODAL DE TRANSFERÊNCIA (detalhes) */}
+            {/* MODAL DE TRANSFERÊNCIA / EDIÇÃO (ATUALIZADO COM VÍNCULO) */}
             {transferModal.visivel && (
                 <div className="modal-overlay" style={{ display: 'flex', zIndex: 9999 }} onClick={(e) => {
                     if (e.target.className.includes('modal-overlay')) setTransferModal({ ...transferModal, visivel: false });
                 }}>
                     <div className="modal-box" style={{ width: '500px', padding: '30px' }}>
-                        <h3 style={{ marginTop: 0, color: '#f39c12' }}>🔄 Transferir Operador</h3>
-                        <p style={{ marginBottom: '20px' }}>Preencha os dados para transferir <strong>{transferModal.operadorNome}</strong>:</p>
+                        <h3 style={{ marginTop: 0, color: '#f39c12' }}>🔄 Transferir / Editar Operador</h3>
+                        <p style={{ marginBottom: '20px' }}>Altere os dados de <strong>{transferModal.operadorNome}</strong>:</p>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
                             <div>
                                 <label style={{ fontWeight: 'bold', display: 'block', marginBottom: '5px' }}>Novo Líder:</label>
@@ -386,10 +401,20 @@ export default function Configuracoes() {
                                     {db.linhas.map(l => <option key={l.id} value={l.id}>{l.nome}</option>)}
                                 </select>
                             </div>
+                            <div>
+                                <label style={{ fontWeight: 'bold', display: 'block', marginBottom: '5px' }}>Novo Vínculo:</label>
+                                <select value={transferModal.novoVinculo || ''} onChange={e => setTransferModal({ ...transferModal, novoVinculo: e.target.value })}>
+                                    <option value="">Selecione...</option>
+                                    <option value="Efetivo">Efetivo</option>
+                                    <option value="Temporário Manpower">Temporário Manpower</option>
+                                    <option value="Temporário We Can">Temporário We Can</option>
+                                    <option value="CTD">CTD</option>
+                                </select>
+                            </div>
                         </div>
                         <div style={{ display: 'flex', gap: '10px', marginTop: '25px', justifyContent: 'flex-end' }}>
                             <button onClick={() => setTransferModal({ ...transferModal, visivel: false })} style={{ background: '#ecf0f1', color: '#2c3e50', width: 'auto' }}>Cancelar</button>
-                            <button onClick={confirmarTransferencia} style={{ background: '#f39c12', width: 'auto' }}>Confirmar Transferência</button>
+                            <button onClick={confirmarTransferencia} style={{ background: '#f39c12', width: 'auto' }}>Confirmar Alterações</button>
                         </div>
                     </div>
                 </div>

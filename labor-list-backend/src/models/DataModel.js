@@ -61,17 +61,22 @@ class DataModel {
         ] = await Promise.all([
             // Query de Operadores (Usa JSON_AGG para trazer todas as linhas do Polivalente num array)
             pool.query(`
-                SELECT c.*, l.nome as nome_lider, 
-                COALESCE(
-                    (SELECT json_agg(li.nome) 
-                     FROM colaborador_linhas cl 
-                     JOIN linhas li ON cl.linha_id = li.id 
-                     WHERE cl.colaborador_id = c.id), 
-                '[]') as linhas_vinculadas 
-                FROM colaboradores c 
-                LEFT JOIN colaboradores l ON c.lider_id = l.id 
-                WHERE c.cargo = 'Operador' 
-                ORDER BY c.nome
+SELECT c.*, 
+       l.nome as nome_lider,
+       COALESCE(
+         (SELECT json_agg(li.nome) 
+          FROM colaborador_linhas cl 
+          JOIN linhas li ON cl.linha_id = li.id 
+          WHERE cl.colaborador_id = c.id
+         ), '[]') as linhas_vinculadas,
+       (SELECT cl.linha_id 
+        FROM colaborador_linhas cl 
+        WHERE cl.colaborador_id = c.id 
+        LIMIT 1) as linha_principal_id   -- ← NOVO CAMPO
+FROM colaboradores c
+LEFT JOIN colaboradores l ON c.lider_id = l.id
+WHERE c.cargo = 'Operador'
+ORDER BY c.nome
             `),
             pool.query("SELECT * FROM produtos ORDER BY nome"),
             pool.query("SELECT * FROM linhas ORDER BY nome"),
@@ -464,36 +469,37 @@ class DataModel {
     /**
      * Tela de Transferência (Move o operador de um Líder para outro).
      */
-    static async transferirOperador(dados) {
-        const client = await pool.connect();
-        try {
-            await client.query("BEGIN");
-
-            // 1. Muda o líder e o turno base
+static async transferirOperador(dados) {
+    const client = await pool.connect();
+    try {
+        await client.query("BEGIN");
+        // 1. Muda o líder, turno E vínculo (se informado)
+        await client.query(
+            `UPDATE colaboradores 
+             SET lider_id = $1, 
+                 turno = $2,
+                 vinculo = COALESCE($4, vinculo)
+             WHERE id = $3`,
+            [dados.novo_lider_id || null, dados.novo_turno, dados.colaborador_id, dados.novo_vinculo || null]
+        );
+        // 2. Apaga os vínculos da linha antiga
+        await client.query("DELETE FROM colaborador_linhas WHERE colaborador_id = $1",
+            [dados.colaborador_id]);
+        // 3. Associa a nova linha principal
+        if (dados.nova_linha_id) {
             await client.query(
-                "UPDATE colaboradores SET lider_id = $1, turno = $2 WHERE id = $3",
-                [dados.novo_lider_id || null, dados.novo_turno, dados.colaborador_id]
+                "INSERT INTO colaborador_linhas (colaborador_id, linha_id) VALUES ($1, $2)",
+                [dados.colaborador_id, dados.nova_linha_id]
             );
-
-            // 2. Apaga os vínculos da linha antiga
-            await client.query("DELETE FROM colaborador_linhas WHERE colaborador_id = $1", [dados.colaborador_id]);
-
-            // 3. Associa a nova linha principal
-            if (dados.nova_linha_id) {
-                await client.query(
-                    "INSERT INTO colaborador_linhas (colaborador_id, linha_id) VALUES ($1, $2)",
-                    [dados.colaborador_id, dados.nova_linha_id]
-                );
-            }
-
-            await client.query("COMMIT");
-        } catch (e) {
-            await client.query("ROLLBACK");
-            throw e;
-        } finally {
-            client.release();
         }
+        await client.query("COMMIT");
+    } catch (e) {
+        await client.query("ROLLBACK");
+        throw e;
+    } finally {
+        client.release();
     }
+}
 
     static async salvarYieldColaborador(dados) {
         // Upsert: Insere o valor do Yield. Se já existir, atualiza.
