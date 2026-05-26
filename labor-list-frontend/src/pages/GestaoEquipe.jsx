@@ -341,6 +341,7 @@ export default function GestaoEquipe() {
                             <thead>
                                 <tr>
                                     <th>Operador</th>
+                                    <th style={{ textAlign: 'center' }}>Turno</th>
                                     <th style={{ textAlign: 'center' }}>Linha(s)</th>
                                     <th style={{ textAlign: 'center' }}>Vínculo</th>
                                     <th>Alocação Atual</th>
@@ -448,6 +449,9 @@ export default function GestaoEquipe() {
                                                                 {infoAdicional}
                                                             </span>
                                                         )}
+                                                    </td>
+                                                    <td style={{ textAlign: 'center' }}>
+                                                        {op.turno || 'T1'}
                                                     </td>
                                                     <td style={{ textAlign: 'center' }}>
                                                         {temLinhasCobertura ? (

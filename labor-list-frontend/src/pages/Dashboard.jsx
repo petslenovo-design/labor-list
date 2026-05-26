@@ -429,6 +429,7 @@ export default function Dashboard() {
             const dadosPlanilha = modalInfo.lista.map(op => ({
                 NOME: op.nome,
                 LIDER: op.nome_lider || 'Sem Líder',
+                TURNO: op.turno || 'T1',
                 LINHAS: (op.linhas_vinculadas || []).join(', '),
                 DETALHE: op.detalhe || '',
                 JUSTIFICATIVA: op.motivoTxt || ''
@@ -436,7 +437,7 @@ export default function Dashboard() {
             const ws = XLSX.utils.json_to_sheet(dadosPlanilha);
             const wb = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(wb, ws, modalInfo.titulo);
-            ws['!cols'] = [{wch:30}, {wch:25}, {wch:30}, {wch:40}, {wch:50}];
+            ws['!cols'] = [{wch:30}, {wch:25}, {wch:30}, {wch:10}, {wch:40}, {wch:50}];
             XLSX.writeFile(wb, `Lista_${modalInfo.titulo.replace(/\s+/g, '_')}.xlsx`);
         } catch (e) {
             toast.error('Erro ao gerar o arquivo Excel.');
@@ -784,7 +785,7 @@ export default function Dashboard() {
                                     <div key={op.id} style={{ background: 'white', padding: '15px', marginBottom:'10px', borderRadius: '8px', border: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 2px 5px rgba(0,0,0,0.01)' }}>
                                         <div style={{ flex: 1, paddingRight: '15px' }}>
                                             <strong style={{ fontSize: '1.1em', color: '#2c3e50' }}>{op.nome}</strong><br/>
-                                            <span style={{ fontSize: '0.9em', color: '#7f8c8d' }}>Líder: {op.nome_lider || 'N/A'} | Linhas: {(op.linhas_vinculadas || []).join(', ')}</span>
+                                            <span style={{ fontSize: '0.9em', color: '#7f8c8d' }}>Líder: {op.nome_lider || 'N/A'} | Linhas: {(op.linhas_vinculadas || []).join(', ')} | Turno: {op.turno || 'T1'}</span>
                                             {op.motivoTxt && (
                                                 <div style={{ marginTop: '6px', fontSize: '0.85em', color: '#7f8c8d', fontStyle: 'italic', background: '#fcf3cf', padding: '4px 8px', borderRadius: '4px', width: 'fit-content' }}>
                                                     ℹ️ {op.motivoTxt}
