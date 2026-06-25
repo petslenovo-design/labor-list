@@ -9,7 +9,7 @@ export default function LogsAuditoria() {
     const [db, setDb] = useState({ produtos: [], lideres: [], linhas: [], operadores: [] });
     const [filtroTexto, setFiltroTexto] = useState('');
     const [filtroAcao, setFiltroAcao] = useState('');
-    
+
     // Estados para controle do Modal de Inspeção Individual
     const [selectedLog, setSelectedLog] = useState(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -20,7 +20,7 @@ export default function LogsAuditoria() {
         api.get('/carregar_logs')
             .then(res => setLogs(res.data))
             .catch(() => toast.error("Erro ao carregar logs de auditoria."));
-            
+
         // Carrega dados gerais da fábrica para decodificar os IDs
         api.get('/carregar_tudo')
             .then(res => setDb(res.data))
@@ -145,7 +145,7 @@ export default function LogsAuditoria() {
     const renderizarMetadadosAmigaveis = (detalhes) => {
         try {
             const obj = typeof detalhes === 'string' ? JSON.parse(detalhes) : detalhes;
-            
+
             if (!obj || Object.keys(obj).length === 0) {
                 return <div style={{ color: '#7f8c8d', fontStyle: 'italic' }}>Nenhum metadado adicional registrado para esta ação.</div>;
             }
@@ -154,13 +154,13 @@ export default function LogsAuditoria() {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                     {Object.entries(obj).map(([chave, valor]) => {
                         const labelAmigavel = dicionarioTermos[chave] || chave.replace(/_/g, ' ').toUpperCase();
-                        
+
                         // Dispara a resolução inteligente para traduzir o ID no nome correto
                         const valorTratado = resolverNomePeloID(chave, valor);
 
                         const isSim = valorTratado === 'SIM' || valorTratado === 'true';
                         const isNao = valorTratado === 'NÃO' || valorTratado === 'false';
-                        
+
                         let valorStyle = { fontWeight: 'bold', color: '#2c3e50', textAlign: 'right', wordBreak: 'break-word' };
                         if (isSim) valorStyle = { ...valorStyle, background: '#27ae60', color: 'white', padding: '2px 8px', borderRadius: '4px', fontSize: '0.9em' };
                         if (isNao) valorStyle = { ...valorStyle, background: '#95a5a6', color: 'white', padding: '2px 8px', borderRadius: '4px', fontSize: '0.9em' };
@@ -203,11 +203,11 @@ export default function LogsAuditoria() {
             <div className="filter-row" style={{ marginBottom: '20px', background: '#fff', padding: '15px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
                 <div style={{ flex: 2 }}>
                     <label style={{ fontWeight: 'bold', display: 'block', marginBottom: '5px' }}>Pesquisa Geral (Utilizador, IDs ou Conteúdo)</label>
-                    <input 
-                        type="text" 
-                        placeholder="Clique em qualquer linha da tabela para inspecionar os detalhes resolvidos..." 
-                        value={filtroTexto} 
-                        onChange={e => setFiltroTexto(e.target.value)} 
+                    <input
+                        type="text"
+                        placeholder="Clique em qualquer linha da tabela para inspecionar os detalhes resolvidos..."
+                        value={filtroTexto}
+                        onChange={e => setFiltroTexto(e.target.value)}
                         style={{ padding: '10px', fontSize: '1em' }}
                     />
                 </div>
@@ -226,6 +226,7 @@ export default function LogsAuditoria() {
                     <thead style={{ background: '#2c3e50', color: 'white' }}>
                         <tr>
                             <th style={{ width: '80px', textAlign: 'center' }}>ID</th>
+                            <th style={{ width: '150px' }}>Data/Hora</th>
                             <th style={{ width: '180px' }}>Utilizador (LDAP)</th>
                             <th style={{ width: '220px' }}>Ação Executada</th>
                             <th>Metadados Resumidos (Clique para expandir)</th>
@@ -233,22 +234,31 @@ export default function LogsAuditoria() {
                     </thead>
                     <tbody>
                         {logsFiltrados.length === 0 ? (
-                            <tr><td colSpan="4" style={{ textAlign: 'center', padding: '20px', color: '#7f8c8d' }}>Nenhum log de auditoria encontrado para os filtros aplicados.</td></tr>
+                            <tr><td colSpan="5" style={{ textAlign: 'center', padding: '20px', color: '#7f8c8d' }}>Nenhum log de auditoria encontrado para os filtros aplicados.</td></tr>
                         ) : (
                             logsFiltrados.map(log => {
                                 const bruto = typeof log.detalhes === 'object' ? JSON.stringify(log.detalhes) : log.detalhes;
                                 const isCritico = log.acao.toUpperCase().includes('EXCLUIR') || log.acao.toUpperCase().includes('ZERAR') || log.acao.toUpperCase().includes('REVOGAR');
-                                
+
+                                // Formata a data/hora (ajuste o nome do campo conforme seu banco)
+                                const dataHora = log.data_hora
+                                    ? new Date(log.data_hora).toLocaleString('pt-BR', {
+                                        day: '2-digit', month: '2-digit', year: 'numeric',
+                                        hour: '2-digit', minute: '2-digit', second: '2-digit'
+                                    })
+                                    : '—';
+
                                 return (
-                                    <tr 
-                                        key={log.id} 
-                                        className="hover-row" 
+                                    <tr
+                                        key={log.id}
+                                        className="hover-row"
                                         onClick={() => abrirInspeção(log)}
                                         style={{ fontSize: '0.9em', cursor: 'pointer' }}
                                     >
                                         <td style={{ textAlign: 'center', fontWeight: 'bold', color: isCritico ? '#e74c3c' : '#7f8c8d' }}>
                                             {isCritico ? '🚨' : ''} #{log.id}
                                         </td>
+                                        <td style={{ fontSize: '0.85em', color: '#555' }}>{dataHora}</td>  {/* ← NOVA CÉLULA */}
                                         <td>
                                             <span style={{ background: '#ebf5fb', color: '#2980b9', padding: '4px 8px', borderRadius: '4px', fontWeight: 'bold' }}>
                                                 {log.usuario_login}
@@ -270,14 +280,14 @@ export default function LogsAuditoria() {
                 MODAL DE INSPEÇÃO AVANÇADA (IDs TRADUZIDOS EM NOMES)
             ============================================================================ */}
             {isModalOpen && selectedLog && (
-                <div className="modal-overlay" style={{ display: 'flex', zIndex: 99999 }} onClick={(e) => { if(e.target.className.includes('modal-overlay')) setIsModalOpen(false) }}>
+                <div className="modal-overlay" style={{ display: 'flex', zIndex: 99999 }} onClick={(e) => { if (e.target.className.includes('modal-overlay')) setIsModalOpen(false) }}>
                     <div className="modal-box" style={{ width: '650px', maxHeight: '85vh', display: 'flex', flexDirection: 'column', padding: 0, borderRadius: '12px', overflow: 'hidden' }}>
-                        
+
                         {/* CABEÇALHO DO MODAL */}
-                        <div style={{ 
-                            background: selectedLog.acao.toUpperCase().includes('EXCLUIR') ? '#c0392b' : '#34495e', 
-                            padding: '20px', 
-                            display: 'flex', 
+                        <div style={{
+                            background: selectedLog.acao.toUpperCase().includes('EXCLUIR') ? '#c0392b' : '#34495e',
+                            padding: '20px',
+                            display: 'flex',
                             justifyContent: 'space-between',
                             alignItems: 'center'
                         }}>
@@ -289,14 +299,14 @@ export default function LogsAuditoria() {
 
                         {/* SUB-ABAS DE NAVEGAÇÃO INTERNA DO MODAL */}
                         <div style={{ display: 'flex', background: '#eee', borderBottom: '1px solid #ddd' }}>
-                            <button 
+                            <button
                                 onClick={() => setAbaVisualizacao('amigavel')}
-                                style={{ 
-                                    flex: 1, 
-                                    padding: '12px', 
-                                    background: abaVisualizacao === 'amigavel' ? '#fff' : 'transparent', 
-                                    border: 'none', 
-                                    fontWeight: 'bold', 
+                                style={{
+                                    flex: 1,
+                                    padding: '12px',
+                                    background: abaVisualizacao === 'amigavel' ? '#fff' : 'transparent',
+                                    border: 'none',
+                                    fontWeight: 'bold',
                                     color: abaVisualizacao === 'amigavel' ? '#1abc9c' : '#555',
                                     cursor: 'pointer',
                                     borderBottom: abaVisualizacao === 'amigavel' ? '3px solid #1abc9c' : 'none'
@@ -304,14 +314,14 @@ export default function LogsAuditoria() {
                             >
                                 📋 Tradução Amigável (Nomes Reais)
                             </button>
-                            <button 
+                            <button
                                 onClick={() => setAbaVisualizacao('json')}
-                                style={{ 
-                                    flex: 1, 
-                                    padding: '12px', 
-                                    background: abaVisualizacao === 'json' ? '#fff' : 'transparent', 
-                                    border: 'none', 
-                                    fontWeight: 'bold', 
+                                style={{
+                                    flex: 1,
+                                    padding: '12px',
+                                    background: abaVisualizacao === 'json' ? '#fff' : 'transparent',
+                                    border: 'none',
+                                    fontWeight: 'bold',
                                     color: abaVisualizacao === 'json' ? '#2980b9' : '#555',
                                     cursor: 'pointer',
                                     borderBottom: abaVisualizacao === 'json' ? '3px solid #2980b9' : 'none'
@@ -323,7 +333,7 @@ export default function LogsAuditoria() {
 
                         {/* CONTEÚDO DINÂMICO CONFORME A ABA SELECIONADA */}
                         <div style={{ padding: '20px', overflowY: 'auto', flex: 1, background: '#fff', display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                            
+
                             {/* Metadados Fixos do Log */}
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
                                 <div style={{ background: '#f8f9fa', padding: '10px 12px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
@@ -334,14 +344,23 @@ export default function LogsAuditoria() {
                                     <span style={{ fontSize: '0.75em', fontWeight: 'bold', color: '#95a5a6' }}>EVENTO MAPEADO</span>
                                     <div style={{ fontSize: '1.05em', fontWeight: 'bold', color: '#2c3e50', marginTop: '2px' }}>{selectedLog.acao}</div>
                                 </div>
+                                <span style={{ fontSize: '0.75em', fontWeight: 'bold', color: '#95a5a6' }}>DATA/HORA</span>
+                                <div style={{ fontSize: '1.05em', fontWeight: 'bold', color: '#2c3e50', marginTop: '2px' }}>
+                                    {selectedLog.data_hora
+                                        ? new Date(selectedLog.data_hora).toLocaleString('pt-BR', {
+                                            day: '2-digit', month: '2-digit', year: 'numeric',
+                                            hour: '2-digit', minute: '2-digit', second: '2-digit'
+                                        })
+                                        : '—'}
+                                </div>
                             </div>
 
                             {/* Área de Payload Alternável */}
                             <div style={{ background: '#fff', padding: '15px', borderRadius: '6px', border: '1px solid #e2e8f0', flex: 1 }}>
                                 <span style={{ fontSize: '0.75em', fontWeight: 'bold', color: '#95a5a6', display: 'block', marginBottom: '10px' }}>CONTEÚDO DETALHADO DO EVENTO</span>
                                 <div style={{ background: '#fafafa', border: '1px solid #ddd', padding: '15px', borderRadius: '4px', overflowX: 'auto', maxHeight: '35vh' }}>
-                                    {abaVisualizacao === 'amigavel' 
-                                        ? renderizarMetadadosAmigaveis(selectedLog.detalhes) 
+                                    {abaVisualizacao === 'amigavel'
+                                        ? renderizarMetadadosAmigaveis(selectedLog.detalhes)
                                         : renderizarJsonBruto(selectedLog.detalhes)
                                     }
                                 </div>

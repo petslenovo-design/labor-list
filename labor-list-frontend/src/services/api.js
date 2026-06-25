@@ -33,7 +33,7 @@ api.interceptors.response.use(
             delete api.defaults.headers.Authorization;
 
             // Redireciona para a tela de login
-            window.location.href = '/login';
+            window.location.href = '/';
         }
         // Propaga o erro para quem chamou a API
         return Promise.reject(error);

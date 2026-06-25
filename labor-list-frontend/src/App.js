@@ -14,6 +14,7 @@ import Heatmap from './pages/Heatmap';
 import PlanejamentoHE from './pages/PlanejamentoHE';
 import Configuracoes from './pages/Configuracoes';
 import LogsAuditoria from './pages/LogsAuditoria';
+import AbsenteismoRH from './pages/AbsenteismoRH';
 
 // (Importe as outras páginas que criar...)
 
@@ -47,6 +48,10 @@ export default function App() {
                     <Route path="/planejamento-he" element={<PrivateRoute><PlanejamentoHE /></PrivateRoute>} />
                     <Route path="/configuracoes" element={<PrivateRoute><Configuracoes /></PrivateRoute>} />
                     <Route path="/logs" element={<PrivateRoute><LogsAuditoria /></PrivateRoute>} />
+                    
+                    {/* CORREÇÃO APLICADA AQUI: Envolver com <PrivateRoute> para ter Sidebar e Proteção */}
+                    <Route path="/rh-absenteismo" element={<PrivateRoute><AbsenteismoRH /></PrivateRoute>} />
+                    
                     {/* Adicione as outras aqui */}
                 </Routes>
             </BrowserRouter>

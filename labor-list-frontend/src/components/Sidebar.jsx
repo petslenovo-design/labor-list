@@ -18,6 +18,7 @@ export default function Sidebar() {
         { path: '/treinamentos', icon: '📚', label: 'Treinamentos' },
         { path: '/heatmap', icon: '🔥', label: 'Mapa de Calor' },
         { path: '/planejamento-he', icon: '📅', label: 'Planejamento HE' },
+        { path: '/rh-absenteismo', icon: '📅', label: 'Absenteísmo RH' },
         { path: '/configuracoes', icon: '⚙️', label: 'Configurações' }
     ];
 

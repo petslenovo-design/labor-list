@@ -61,6 +61,9 @@ export default function GestaoEquipe() {
     const [filtroSetor, setFiltroSetor] = useState('');
     const [filtroSkillProduto, setFiltroSkillProduto] = useState('');
 
+    // MELHORIA EXECUTADA: Estado para a barra de pesquisa rápida por nome
+    const [termoBusca, setTermoBusca] = useState('');
+
     // Estados de Controle de Interface
     const [opExpandido, setOpExpandido] = useState(null);
     const [activeForm, setActiveForm] = useState('');
@@ -87,13 +90,10 @@ export default function GestaoEquipe() {
             if (user.perfil === 'LIDER' && !filtroLider && user.colaborador_id) {
                 setFiltroLider(String(user.colaborador_id));
             }
-            // Para SUPERVISAO ou MASTER, não define filtro automático – o usuário escolhe o líder
         } catch (e) {
             toast.error("Erro ao carregar dados do servidor");
         }
     };
-
-
 
     useEffect(() => {
         carregarDados();
@@ -117,7 +117,6 @@ export default function GestaoEquipe() {
     // ============================================================================
     const handleStatusChange = async (opId, novoStatus, extraData = {}) => {
         try {
-            const op = db.operadores.find(o => o.id === opId);
             const statusParaEnviar = novoStatus === '' ? null : novoStatus;
 
             await api.post('/alterar_status', {
@@ -127,42 +126,40 @@ export default function GestaoEquipe() {
                 ...extraData
             });
 
-            // CORREÇÃO: Se estiver removendo um status especial e o operador tem linhas de cobertura,
-            // define o status como Polivalente
-            if (novoStatus === '' && op.linhas_vinculadas && op.linhas_vinculadas.length > 0) {
+            // CORREÇÃO: Limpamos a auto-promoção a Polivalente. 
+            // Se o RH/Líder limpou o status (novoStatus === ''), o operador fica Normal.
+            toast.success(novoStatus === '' ? 'Status removido com sucesso!' : 'Status atualizado com sucesso!');
+
+            setActiveForm('');
+            carregarDados();
+        } catch (error) {
+            toast.error(error.response?.data?.erro || "Erro ao comunicar com o servidor.");
+        }
+    };
+
+const SpruceUpPoliObj = async (opId) => {
+        try {
+            if (!formValues.linhasPoli || formValues.linhasPoli.length === 0) {
+                return toast.error("Selecione pelo menos uma linha para cobertura.");
+            }
+
+            const op = db.operadores.find(o => o.id === opId);
+
+            // 1. Atualiza as linhas no banco de dados
+            await api.post('/atualizar_linhas_cobertura', {
+                colaborador_id: opId,
+                linhas: formValues.linhasPoli
+            });
+
+            // 2. CORREÇÃO: Só muda o status da tela para "Polivalente" se ele não estiver com outro status importante (Férias, Falta, etc.)
+            if (!op.status_especial || op.status_especial === 'Polivalente') {
                 await api.post('/alterar_status', {
                     id: opId,
                     status_novo: 'Polivalente',
                     is_explicit_update: true
                 });
-                toast.success('Status removido! Operador voltou a ser Polivalente.');
-            } else {
-                toast.success(novoStatus === '' ? 'Status removido com sucesso!' : 'Status atualizado com sucesso!');
             }
 
-            setActiveForm('');
-            carregarDados();
-        } catch (e) {
-            toast.error('Erro ao atualizar status.');
-        }
-    };
-
-    const executarSalvarPolivalente = async (opId) => {
-        try {
-            if (!formValues.linhasPoli || formValues.linhasPoli.length === 0) {
-                return toast.error("Selecione pelo menos uma linha para cobertura.");
-            }
-            // Primeiro salva as linhas de cobertura
-            await api.post('/atualizar_linhas_cobertura', {
-                colaborador_id: opId,
-                linhas: formValues.linhasPoli
-            });
-            // Depois define o status como Polivalente
-            await api.post('/alterar_status', {
-                id: opId,
-                status_novo: 'Polivalente',
-                is_explicit_update: true
-            });
             toast.success('Polivalência configurada com sucesso!');
             setActiveForm('');
             carregarDados();
@@ -171,15 +168,23 @@ export default function GestaoEquipe() {
         }
     };
 
-    const executarRemoverPolivalente = async (opId) => {
+    const ClearPoliStatusOnly = async (opId) => {
         try {
-            // NÃO remove as linhas de cobertura, apenas remove o status Polivalente
-            await api.post('/alterar_status', {
-                id: opId,
-                status_novo: null,
-                is_explicit_update: true
-            });
-            toast.success('Status de Polivalente removido! As linhas de cobertura foram mantidas.');
+            const op = db.operadores.find(o => o.id === opId);
+
+            // CORREÇÃO: Só apaga o status se ele for de facto "Polivalente"
+            // Se ele estiver de "Férias", nós ignoramos a limpeza do status para não estragar as Férias
+            if (op.status_especial === 'Polivalente') {
+                await api.post('/alterar_status', {
+                    id: opId,
+                    status_novo: null,
+                    is_explicit_update: true
+                });
+                toast.success('Status de Polivalente removido! As linhas de cobertura foram mantidas.');
+            } else {
+                toast.success(`Ação concluída. (O status de ${op.status_especial} foi preservado).`);
+            }
+            
             setActiveForm('');
             carregarDados();
         } catch (e) {
@@ -246,26 +251,26 @@ export default function GestaoEquipe() {
     };
 
     // ============================================================================
-    // LÓGICA DE FILTRAGEM DA EQUIPE
+    // LÓGICA DE FILTRAGEM DA EQUIPE (E PESQUISA RÁPIDA)
     // ============================================================================
     const equipeFiltrada = db.operadores.filter(op => {
-        // Filtro por Líder
         if (filtroLider && String(op.lider_id) !== String(filtroLider)) return false;
 
-        // Filtro por Linha (considerando polivalência)
         const arrLinhas = Array.isArray(op.linhas_vinculadas) ? op.linhas_vinculadas : [];
         if (filtroLinha !== "" && op.linha !== filtroLinha && !arrLinhas.includes(filtroLinha)) return false;
 
-        // Filtro por Setor
         if (filtroSetor !== "") {
             const aloc = db.alocacoes.filter(a => String(a.colaborador_id) === String(op.id)).slice(-1)[0];
             if (!aloc || !mapeamentoSetores[filtroSetor]?.includes(aloc.posto)) return false;
         }
 
+        // MELHORIA EXECUTADA: Filtro de pesquisa rápida por nome (ignora maiúsculas/minúsculas)
+        if (termoBusca && !op.nome.toLowerCase().includes(termoBusca.toLowerCase())) return false;
+
         return true;
     });
 
-    // Calcular contadores para os badges
+    // Calcular contadores para os badges baseados na lista filtrada
     let cAtivos = 0, cFaltas = 0, cFerias = 0, cSaidas = 0, cAfastados = 0;
     equipeFiltrada.forEach(op => {
         if (op.status_especial === "Absenteísmo") cFaltas++;
@@ -275,7 +280,6 @@ export default function GestaoEquipe() {
         else cAtivos++;
     });
 
-    // Obter cor do Yield
     const getYieldColor = (yieldVal) => {
         if (!yieldVal) return 'yield-dot';
         if (yieldVal < 95) return 'yield-dot-red';
@@ -287,8 +291,9 @@ export default function GestaoEquipe() {
         <div className="page">
             <h2 className="page-title">👥 Gestão de Equipe</h2>
             <div className="leader-panel-section">
-                {/* CABEÇALHO COM FILTROS */}
-                <div className="filter-row">
+
+                {/* CABEÇALHO COM FILTROS E A NOVA BARRA DE BUSCA */}
+                <div className="filter-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px' }}>
                     <div>
                         <label style={{ fontWeight: 'bold', display: 'block', marginBottom: '5px' }}>1. Líder Responsável</label>
                         <select
@@ -321,6 +326,24 @@ export default function GestaoEquipe() {
                             <option value="PACKING">PACKING</option>
                         </select>
                     </div>
+                    {/* MELHORIA EXECUTADA: Interface do Campo de Pesquisa Rápida por Nome */}
+                    <div>
+                        <label style={{ fontWeight: 'bold', display: 'block', marginBottom: '5px' }}>🔍 Pesquisa Rápida</label>
+                        <input
+                            type="text"
+                            placeholder="Digite o nome do operador..."
+                            value={termoBusca}
+                            onChange={(e) => setTermoBusca(e.target.value)}
+                            style={{
+                                padding: '8px 12px',
+                                borderRadius: '4px',
+                                border: '1px solid #ccc',
+                                width: '100%',
+                                boxSizing: 'border-box',
+                                fontFamily: 'inherit'
+                            }}
+                        />
+                    </div>
                 </div>
 
                 {/* PAINEL E TABELA DA EQUIPE */}
@@ -350,7 +373,7 @@ export default function GestaoEquipe() {
                             <tbody>
                                 {equipeFiltrada.length === 0 ? (
                                     <tr>
-                                        <td colSpan="4" style={{ textAlign: 'center', padding: '15px' }}>
+                                        <td colSpan="5" style={{ textAlign: 'center', padding: '15px' }}>
                                             Nenhum operador encontrado com os filtros atuais.
                                         </td>
                                     </tr>
@@ -359,17 +382,13 @@ export default function GestaoEquipe() {
                                         const aloc = db.alocacoes.filter(a => String(a.colaborador_id) === String(op.id)).slice(-1)[0];
                                         let icone = "", infoAdicional = "";
                                         const hojeStr = new Date().toISOString().split('T')[0];
-
-                                        // Verifica se tem linhas de cobertura (para saber se é Polivalente internamente)
                                         const temLinhasCobertura = op.linhas_vinculadas && op.linhas_vinculadas.length > 0;
 
-                                        // CORES E BORDAS - Prioridade: Status Especial > Polivalente > Normal
                                         let rowBg = '#ffffff';
                                         let rowBorderLeft = '4px solid transparent';
                                         let classeStatus = "status-normal";
                                         let displayIcone = "";
 
-                                        // 1. PRIORIDADE MÁXIMA: Status Especiais
                                         if (op.status_especial === "Absenteísmo") {
                                             displayIcone = "⚠️ ";
                                             classeStatus = "status-absenteismo";
@@ -395,22 +414,16 @@ export default function GestaoEquipe() {
                                             if (op.vacation_end) infoAdicional = ` (${calcularDiasFerias(op.vacation_end)})`;
                                             rowBg = '#d6eaf8';
                                             rowBorderLeft = '4px solid #3498db';
-                                        }
-                                        // 2. SEGUNDA PRIORIDADE: Status Polivalente (só se não tiver status especial)
-                                        else if (op.status_especial === "Polivalente" && temLinhasCobertura) {
+                                        } else if (op.status_especial === "Polivalente" && temLinhasCobertura) {
                                             displayIcone = "⭐ ";
                                             classeStatus = "status-polivalente";
                                             rowBg = '#fef9e7';
                                             rowBorderLeft = '4px solid #f1c40f';
-                                        }
-                                        // 3. Caso especial: Tem linhas de cobertura mas NÃO tem status Polivalente (não deve acontecer, mas tratamos)
-                                        else if (temLinhasCobertura) {
-                                            // Não mostra ícone, mas mantém as linhas na coluna Linha(s)
+                                        } else if (temLinhasCobertura) {
                                             rowBg = '#ffffff';
                                             rowBorderLeft = '4px solid transparent';
                                         }
 
-                                        // Se expandido, sobrepõe com azul claro
                                         const currentBg = opExpandido === op.id ? '#ebf5fb' : rowBg;
                                         const currentBorder = opExpandido === op.id ? '4px solid #3498db' : rowBorderLeft;
 
@@ -421,7 +434,6 @@ export default function GestaoEquipe() {
                                             </span>
                                         ) : null;
 
-                                        // Buscar performance do operador
                                         const opPerf = db.opPerformance?.[op.nome] || {};
 
                                         return (
@@ -475,7 +487,7 @@ export default function GestaoEquipe() {
                                                         )}
                                                     </td>
                                                     <td style={{ textAlign: 'center' }}>
-                                                        {op.vinculo === 'CTD' ? 'CTD' : (op.vinculo === 'Temporário' ? 'TEMP' : 'EF')}
+                                                        {op.vinculo === 'CTD' ? 'CTD' : (op.vinculo && op.vinculo.toUpperCase().includes('TEMP') ? 'TEMP' : 'EF')}
                                                     </td>
                                                     <td style={{ color: '#2980b9' }}>
                                                         {aloc ? (
@@ -491,7 +503,7 @@ export default function GestaoEquipe() {
                                                 {/* GAVETA DE FORMULÁRIOS (EXPANDIDA) */}
                                                 {opExpandido === op.id && (
                                                     <tr>
-                                                        <td colSpan="4" style={{ padding: 0, border: 'none' }}>
+                                                        <td colSpan="5" style={{ padding: 0, border: 'none' }}>
                                                             <div className="expand-drawer" style={{
                                                                 padding: '15px',
                                                                 background: '#fdfdfd',
@@ -557,6 +569,15 @@ export default function GestaoEquipe() {
                                                                     >
                                                                         🧠 Skill Matrix
                                                                     </button>
+
+                                                                    {/* MELHORIA EXECUTADA: Botão de acionamento do Histórico do Operador */}
+                                                                    <button
+                                                                        className={`btn-status ${activeForm === 'history' ? 'active' : ''}`}
+                                                                        onClick={() => setActiveForm(activeForm === 'history' ? '' : 'history')}
+                                                                        style={{ marginLeft: 'auto', background: activeForm === 'history' ? '#34495e' : '#ecf0f1', color: activeForm === 'history' ? '#fff' : '#2c3e50', border: '1px solid #bdc3c7' }}
+                                                                    >
+                                                                        📜 Histórico
+                                                                    </button>
                                                                 </div>
 
                                                                 {/* 1. POLIVALENTE */}
@@ -613,7 +634,7 @@ export default function GestaoEquipe() {
                                                                             <button
                                                                                 onClick={() => showConfirm(
                                                                                     'Confirmar operador como Polivalente com as linhas selecionadas?',
-                                                                                    () => executarSalvarPolivalente(op.id),
+                                                                                    () => SpruceUpPoliObj(op.id),
                                                                                     '#f39c12',
                                                                                     'Confirmar Polivalência'
                                                                                 )}
@@ -633,7 +654,7 @@ export default function GestaoEquipe() {
                                                                             <button
                                                                                 onClick={() => showConfirm(
                                                                                     `Deseja remover apenas o status de Polivalente de ${op.nome}? As linhas de cobertura serão mantidas.`,
-                                                                                    () => executarRemoverPolivalente(op.id),
+                                                                                    () => ClearPoliStatusOnly(op.id),
                                                                                     '#7f8c8d',
                                                                                     'Remover Status'
                                                                                 )}
@@ -654,7 +675,7 @@ export default function GestaoEquipe() {
                                                                     </div>
                                                                 )}
 
-                                                                {/* 2. ABSENTEÍSMO */}
+                                                                {/* 2. ABSENTEÍSMO (PADRONIZADO) */}
                                                                 {activeForm === 'abs' && (
                                                                     <div className="drawer-form" style={{
                                                                         borderLeft: '4px solid #e74c3c',
@@ -662,22 +683,51 @@ export default function GestaoEquipe() {
                                                                         background: '#fff',
                                                                         borderRadius: '6px'
                                                                     }}>
-                                                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: '10px', alignItems: 'end' }}>
+                                                                        <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr auto auto', gap: '10px', alignItems: 'end' }}>
                                                                             <div>
-                                                                                <label style={{ fontSize: '0.8em', fontWeight: 'bold' }}>Motivo da Falta:</label>
+                                                                                <label style={{ fontSize: '0.8em', fontWeight: 'bold' }}>Categoria (Obrigatório):</label>
+                                                                                <select
+                                                                                    value={formValues.absCategoria || ''}
+                                                                                    onChange={e => setFormValues({ ...formValues, absCategoria: e.target.value })}
+                                                                                    style={{
+                                                                                        width: '100%', padding: '10px', borderRadius: '4px',
+                                                                                        border: !formValues.absCategoria ? '2px solid #e74c3c' : '1px solid #ccc'
+                                                                                    }}
+                                                                                >
+                                                                                    <option value="">-- Selecione o Motivo Oficial --</option>
+                                                                                    <option value="Atestado Médico">Atestado Médico</option>
+                                                                                    <option value="Falta Injustificada">Falta Injustificada</option>
+                                                                                    <option value="Problema Pessoal / Familiar">Problema Pessoal / Familiar</option>
+                                                                                    <option value="Problema de Transporte">Problema de Transporte</option>
+                                                                                    <option value="Banco de Horas / Folga">Folga / Banco de Horas</option>
+                                                                                    <option value="Atraso (Bloqueado na Catraca)">Atraso Maior que o Permitido</option>
+                                                                                    <option value="Outros">Outros</option>
+                                                                                </select>
+                                                                            </div>
+                                                                            <div>
+                                                                                <label style={{ fontSize: '0.8em', fontWeight: 'bold' }}>Detalhes (Opcional):</label>
                                                                                 <input
                                                                                     type="text"
-                                                                                    onChange={e => setFormValues({ ...formValues, absReason: e.target.value })}
-                                                                                    placeholder="Ex: Atestado médico, Problema pessoal..."
+                                                                                    value={formValues.absDetalhe || ''}
+                                                                                    onChange={e => setFormValues({ ...formValues, absDetalhe: e.target.value })}
+                                                                                    placeholder="Ex: Pneu do ônibus furou..."
+                                                                                    style={{ padding: '10px', border: '1px solid #ccc' }}
                                                                                 />
                                                                             </div>
                                                                             <button
-                                                                                onClick={() => showConfirm(
-                                                                                    'Registrar Falta para o dia de hoje?',
-                                                                                    () => handleStatusChange(op.id, 'Absenteísmo', { absenteeismComment: formValues.absReason }),
-                                                                                    '#e74c3c',
-                                                                                    'Confirmar Falta'
-                                                                                )}
+                                                                                onClick={() => {
+                                                                                    if (!formValues.absCategoria) {
+                                                                                        return toast.error('Selecione a Categoria da falta.');
+                                                                                    }
+                                                                                    const motivoFinal = formValues.absCategoria + (formValues.absDetalhe ? ` - ${formValues.absDetalhe}` : '');
+
+                                                                                    showConfirm(
+                                                                                        'Registrar Falta para o dia de hoje?',
+                                                                                        () => handleStatusChange(op.id, 'Absenteísmo', { absenteeismComment: motivoFinal }),
+                                                                                        '#e74c3c',
+                                                                                        'Confirmar Falta'
+                                                                                    );
+                                                                                }}
                                                                                 style={{ background: '#e74c3c', padding: '12px 20px', border: 'none', borderRadius: '6px', color: 'white', fontWeight: 'bold', cursor: 'pointer' }}
                                                                             >
                                                                                 Confirmar Falta
@@ -697,7 +747,7 @@ export default function GestaoEquipe() {
                                                                     </div>
                                                                 )}
 
-                                                                {/* 3. FÉRIAS */}
+                                                                {/* 3. FÉRIAS (MELHORIA EXECUTADA COM VALIDAÇÕES DE DATA E TRAVA DE HORA EXTRA AGENDADA) */}
                                                                 {activeForm === 'ferias' && (
                                                                     <div className="drawer-form" style={{
                                                                         borderLeft: '4px solid #3498db',
@@ -707,20 +757,54 @@ export default function GestaoEquipe() {
                                                                     }}>
                                                                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto auto', gap: '10px', alignItems: 'end' }}>
                                                                             <div>
-                                                                                <label style={{ fontSize: '0.8em', fontWeight: 'bold' }}>Início:</label>
-                                                                                <input type="date" onChange={e => setFormValues({ ...formValues, vacStart: e.target.value })} />
+                                                                                <label style={{ fontSize: '0.8em', fontWeight: 'bold' }}>Início (obrigatório):</label>
+                                                                                <input
+                                                                                    type="date"
+                                                                                    value={formValues.vacStart || ''}
+                                                                                    onChange={e => setFormValues({ ...formValues, vacStart: e.target.value })}
+                                                                                    style={{
+                                                                                        borderColor: !formValues.vacStart ? '#e74c3c' : undefined,
+                                                                                        borderWidth: !formValues.vacStart ? '2px' : undefined
+                                                                                    }}
+                                                                                />
                                                                             </div>
                                                                             <div>
-                                                                                <label style={{ fontSize: '0.8em', fontWeight: 'bold' }}>Data de Retorno:</label>
-                                                                                <input type="date" onChange={e => setFormValues({ ...formValues, vacEnd: e.target.value })} />
+                                                                                <label style={{ fontSize: '0.8em', fontWeight: 'bold' }}>Data de Retorno (obrigatório):</label>
+                                                                                <input
+                                                                                    type="date"
+                                                                                    value={formValues.vacEnd || ''}
+                                                                                    onChange={e => setFormValues({ ...formValues, vacEnd: e.target.value })}
+                                                                                    style={{
+                                                                                        borderColor: !formValues.vacEnd ? '#e74c3c' : undefined,
+                                                                                        borderWidth: !formValues.vacEnd ? '2px' : undefined
+                                                                                    }}
+                                                                                />
                                                                             </div>
                                                                             <button
-                                                                                onClick={() => showConfirm(
-                                                                                    'Registrar período de Férias?',
-                                                                                    () => handleStatusChange(op.id, 'Férias', { vacation_start: formValues.vacStart, vacation_end: formValues.vacEnd }),
-                                                                                    '#3498db',
-                                                                                    'Confirmar Férias'
-                                                                                )}
+                                                                                onClick={() => {
+                                                                                    if (!formValues.vacStart) return toast.error('Informe a data de início das férias.');
+                                                                                    if (!formValues.vacEnd) return toast.error('Informe a data de retorno das férias.');
+                                                                                    if (formValues.vacEnd <= formValues.vacStart) {
+                                                                                        return toast.error('Inconsistência: A data de retorno deve ser posterior à data de início.');
+                                                                                    }
+
+                                                                                    // VALIDAÇÃO: Impede férias se o operador possuir alguma HE no intervalo digitado
+                                                                                    const possuiHeNoPeriodo = (op.overtimeDates || []).some(he => {
+                                                                                        const dataHeStr = typeof he === 'string' ? he : he.data;
+                                                                                        return dataHeStr >= formValues.vacStart && dataHeStr <= formValues.vacEnd;
+                                                                                    });
+
+                                                                                    if (possuiHeNoPeriodo) {
+                                                                                        return toast.error('Bloqueado: O operador possui Horas Extras agendadas dentro deste período de férias! Cancele o agendamento de HE primeiro.');
+                                                                                    }
+
+                                                                                    showConfirm(
+                                                                                        'Registrar período de Férias?',
+                                                                                        () => handleStatusChange(op.id, 'Férias', { vacation_start: formValues.vacStart, vacation_end: formValues.vacEnd }),
+                                                                                        '#3498db',
+                                                                                        'Confirmar Férias'
+                                                                                    );
+                                                                                }}
                                                                                 style={{ background: '#3498db', padding: '12px 20px', border: 'none', borderRadius: '6px', color: 'white', fontWeight: 'bold', cursor: 'pointer' }}
                                                                             >
                                                                                 Confirmar Férias
@@ -751,13 +835,16 @@ export default function GestaoEquipe() {
                                                                         <div style={{ display: 'grid', gridTemplateColumns: '100px 1fr auto auto', gap: '10px', alignItems: 'end' }}>
                                                                             <div>
                                                                                 <label style={{ fontSize: '0.8em', fontWeight: 'bold' }}>Horário:</label>
-                                                                                {/* <input type="time" onChange={e => setFormValues({ ...formValues, exitTime: e.target.value })} /> */}
                                                                                 <input type="text"
-                                                                                    placeholder="HH:MM"
+                                                                                    placeholder="HH:MM (obrigatório)"
                                                                                     maxLength="5"
                                                                                     value={formValues.exitTime || ''}
+                                                                                    style={{
+                                                                                        borderColor: !formValues.exitTime ? '#e74c3c' : undefined,
+                                                                                        borderWidth: !formValues.exitTime ? '2px' : undefined
+                                                                                    }}
                                                                                     onInput={(e) => {
-                                                                                        let v = e.target.value.replace(/\D/g, '');          // remove tudo que não é dígito
+                                                                                        let v = e.target.value.replace(/\D/g, '');
                                                                                         if (v.length > 2) {
                                                                                             v = v.slice(0, 2) + ':' + v.slice(2, 4);
                                                                                         }
@@ -770,12 +857,17 @@ export default function GestaoEquipe() {
                                                                                 <input type="text" onChange={e => setFormValues({ ...formValues, exitReason: e.target.value })} placeholder="Ex: Banco de horas..." />
                                                                             </div>
                                                                             <button
-                                                                                onClick={() => showConfirm(
-                                                                                    'Registrar Saída Antecipada para este operador?',
-                                                                                    () => handleStatusChange(op.id, 'Saída Antecipada', { early_exit_time: formValues.exitTime, earlyExitReason: formValues.exitReason }),
-                                                                                    '#e67e22',
-                                                                                    'Registrar Saída'
-                                                                                )}
+                                                                                onClick={() => {
+                                                                                    if (!formValues.exitTime || formValues.exitTime.trim() === '') {
+                                                                                        return toast.error('Informe o horário da saída (HH:MM).');
+                                                                                    }
+                                                                                    showConfirm(
+                                                                                        'Registrar Saída Antecipada para este operador?',
+                                                                                        () => handleStatusChange(op.id, 'Saída Antecipada', { early_exit_time: formValues.exitTime, earlyExitReason: formValues.exitReason }),
+                                                                                        '#e67e22',
+                                                                                        'Registrar Saída'
+                                                                                    );
+                                                                                }}
                                                                                 style={{ background: '#e67e22', padding: '12px 20px', border: 'none', borderRadius: '6px', color: 'white', fontWeight: 'bold', cursor: 'pointer' }}
                                                                             >
                                                                                 Registrar Saída
@@ -823,7 +915,6 @@ export default function GestaoEquipe() {
                                                                                 onClick={() => showConfirm(
                                                                                     'ATENÇÃO: O operador está retornando do afastamento. Isso apagará TODOS os treinamentos da Skill Matrix dele. Continuar?',
                                                                                     () => {
-                                                                                        // Primeiro zera os treinamentos, depois remove o status
                                                                                         executarZerarTreinamentos(op.id);
                                                                                         handleStatusChange(op.id, '');
                                                                                     },
@@ -1111,18 +1202,17 @@ export default function GestaoEquipe() {
                                                                                                 className={`badge-skill ${isTrained ? 'skill-trained' : 'skill-empty'} ${yieldClass}`}
                                                                                                 style={{
                                                                                                     flex: '1 1 0',
-                                                                                                    minWidth: '75px', // Garante uma largura mínima ideal para não esmagar o texto
-                                                                                                    height: '42px',   // Altura fixa padrão para alinhar com os indicadores
+                                                                                                    minWidth: '75px',
+                                                                                                    height: '42px',
                                                                                                     fontSize: '0.75em',
                                                                                                     position: 'relative',
                                                                                                     cursor: 'help',
-                                                                                                    // --- ENGENHARIA DE ALINHAMENTO CENTRALIZADO ---
                                                                                                     display: 'inline-flex',
                                                                                                     flexDirection: 'column',
-                                                                                                    justifyContent: 'center', // Centraliza verticalmente
-                                                                                                    alignItems: 'center',     // Centraliza horizontalmente
+                                                                                                    justifyContent: 'center',
+                                                                                                    alignItems: 'center',
                                                                                                     textAlign: 'center',
-                                                                                                    whiteSpace: 'normal',     // Permite quebra de linha se o nome for composto (ex: Sushi 01)
+                                                                                                    whiteSpace: 'normal',
                                                                                                     lineHeight: '1.2',
                                                                                                     boxSizing: 'border-box',
                                                                                                     padding: '4px'
@@ -1148,6 +1238,39 @@ export default function GestaoEquipe() {
                                                                                 </div>
                                                                             </div>
                                                                         )}
+                                                                    </div>
+                                                                )}
+
+                                                                {/* 9. MELHORIA EXECUTADA: SEÇÃO COMPLETA DO HISTÓRICO RECENTE DO OPERADOR */}
+                                                                {activeForm === 'history' && (
+                                                                    <div className="drawer-form" style={{ borderLeft: '4px solid #34495e', padding: '15px', background: '#fff', borderRadius: '6px' }}>
+                                                                        <h5 style={{ margin: '0 0 15px 0', color: '#2c3e50', textTransform: 'uppercase', fontSize: '0.9em' }}>📜 Linha do Tempo Recente</h5>
+                                                                        <div style={{ maxHeight: '250px', overflowY: 'auto', paddingRight: '5px' }}>
+                                                                            {(() => {
+                                                                                const timeline = [];
+                                                                                // Compila as faltas históricas
+                                                                                (op.historicoFaltas || []).forEach(f => timeline.push({ data: f.data, tipo: 'Falta', detalhe: f.motivo || 'Sem justificativa preenchida', cor: '#e74c3c' }));
+                                                                                // Compila as saídas antecipadas históricas
+                                                                                (op.historicoSaidas || []).forEach(s => timeline.push({ data: s.data, tipo: 'Saída Antecipada', detalhe: s.horario ? `Às ${s.horario} - ${s.motivo || ''}` : (s.motivo || 'Sem justificativa'), cor: '#e67e22' }));
+                                                                                // Compila as HEs agendadas ativas
+                                                                                (op.overtimeDates || []).forEach(h => {
+                                                                                    const dStr = typeof h === 'string' ? h : h.data;
+                                                                                    const logisticaStr = `Transporte: ${h.transporte || 'NÃO'}, Refeição: ${h.refeicao || 'NÃO'}`;
+                                                                                    timeline.push({ data: dStr, tipo: 'Hora Extra Agendada', detalhe: logisticaStr, cor: '#2980b9' });
+                                                                                });
+
+                                                                                if (timeline.length === 0) return <p style={{ color: '#7f8c8d', fontSize: '0.9em', fontStyle: 'italic' }}>Nenhum evento registrado no histórico recente deste operador.</p>;
+
+                                                                                // Ordena do mais recente para o mais antigo
+                                                                                return timeline.sort((a, b) => b.data.localeCompare(a.data)).map((item, idx) => (
+                                                                                    <div key={idx} style={{ display: 'flex', borderBottom: '1px solid #eee', padding: '10px 0', alignItems: 'center' }}>
+                                                                                        <div style={{ width: '90px', fontWeight: 'bold', color: '#34495e', fontSize: '0.85em' }}>{item.data.split('-').reverse().join('/')}</div>
+                                                                                        <div style={{ width: '150px' }}><span style={{ background: item.cor, color: 'white', padding: '3px 8px', borderRadius: '12px', fontSize: '0.7em', fontWeight: 'bold' }}>{item.tipo}</span></div>
+                                                                                        <div style={{ flex: 1, fontSize: '0.85em', color: '#7f8c8d' }}>{item.detalhe}</div>
+                                                                                    </div>
+                                                                                ));
+                                                                            })()}
+                                                                        </div>
                                                                     </div>
                                                                 )}
                                                             </div>

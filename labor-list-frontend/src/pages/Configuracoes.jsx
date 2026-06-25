@@ -25,12 +25,80 @@ export default function Configuracoes() {
         novoLiderId: '',
         novoTurno: '',
         novaLinhaId: '',
-        novoVinculo: ''   // NOVO campo para vínculo
+        novoVinculo: '',
+        novaDataMudanca: new Date().toISOString().substring(0, 10) // NOVO: Data customizável
     });
 
     // Exclusão de Líder
     const [remLiderId, setRemLiderId] = useState('');
     const [showModalLider, setShowModalLider] = useState(false);
+
+    // Modal de Desligamento
+    const [demissaoModal, setDemissaoModal] = useState({
+        visivel: false,
+        operadorId: null,
+        operadorNome: '',
+        dataDemissao: new Date().toISOString().substring(0, 10)
+    });
+
+    // Lançamento Retroativo (Exclusivo MASTER)
+    const [retroModal, setRetroModal] = useState({
+        visivel: false,
+        colaboradorId: '',
+        dataFalta: '',
+        motivo: ''
+    });
+
+    const executarLancamentoRetroativo = async () => {
+        if (!retroModal.colaboradorId || !retroModal.dataFalta || !retroModal.motivo) {
+            return toast.error("Preencha o Operador, a Data e o Motivo para realizar o lançamento.");
+        }
+        try {
+            await api.post('/rh/lancamento_retroativo', {
+                colaborador_id: retroModal.colaboradorId,
+                data_falta: retroModal.dataFalta,
+                motivo: retroModal.motivo
+            });
+            toast.success("Falta retroativa injetada no histórico com sucesso!");
+            setRetroModal({ visivel: false, colaboradorId: '', dataFalta: '', motivo: '' });
+            // Atualiza os dados da tela
+            carregarDados(); 
+        } catch (e) {
+            toast.error("Erro ao lançar falta retroativa.");
+        }
+    };
+
+    // Remoção de Absenteísmo (Correção MASTER)
+    const [remAbsModal, setRemAbsModal] = useState({
+        visivel: false,
+        colaboradorId: ''
+    });
+
+    const executarRemocaoAbs = async (dataFalta) => {
+        showConfirm(`🗑️ Tem certeza que deseja remover a falta do dia ${dataFalta.split('-').reverse().join('/')}?`, async () => {
+            try {
+                await api.post('/rh/remover_absenteismo', {
+                    colaborador_id: remAbsModal.colaboradorId,
+                    data_falta: dataFalta
+                });
+                toast.success("Falta removida do histórico com sucesso!");
+                carregarDados(); // Recarrega os dados para a lista atualizar na hora
+            } catch (e) {
+                toast.error("Erro ao remover a falta.");
+            }
+        });
+    };
+
+    // Variável auxiliar para listar as faltas do operador selecionado no modal
+    const opSelecionadoRemAbs = db.operadores.find(op => String(op.id) === String(remAbsModal.colaboradorId));
+    let faltasOpSelecionado = [];
+    if (opSelecionadoRemAbs) {
+        faltasOpSelecionado = typeof opSelecionadoRemAbs.historico_faltas === 'string' 
+            ? JSON.parse(opSelecionadoRemAbs.historico_faltas) 
+            : (opSelecionadoRemAbs.historico_faltas || []);
+        // Ordenar da mais recente para a mais antiga
+        faltasOpSelecionado.sort((a,b) => b.data.localeCompare(a.data));
+    }
 
     // MODAL DE SELEÇÃO GENÉRICO
     const [selecaoModal, setSelecaoModal] = useState({
@@ -93,13 +161,27 @@ export default function Configuracoes() {
 
     // Ações específicas
     const aoExcluirOperador = (operador) => {
-        showConfirm(
-            `🚨 ATENÇÃO: Você está prestes a excluir permanentemente o operador "${operador.nome}".\n\nTodo o histórico de treinamentos, faltas e horas extras será perdido. Esta ação é irreversível.\n\nConfirma a exclusão?`,
-            async () => {
-                await handleAction('excluir_colaborador', { id: operador.id }, () => {});
-            }
-        );
+        setDemissaoModal({
+            visivel: true,
+            operadorId: operador.id,
+            operadorNome: operador.nome,
+            dataDemissao: new Date().toISOString().substring(0, 10) // Traz hoje por defeito
+        });
         setSelecaoModal({ ...selecaoModal, visivel: false });
+    };
+
+    const confirmarDesligamento = async () => {
+        try {
+            await handleAction('excluir_colaborador', { 
+                id: demissaoModal.operadorId,
+                data_demissao: demissaoModal.dataDemissao 
+            }, () => {
+                setDemissaoModal({ visivel: false, operadorId: null, operadorNome: '', dataDemissao: '' });
+            });
+            toast.success("Colaborador desligado com sucesso!");
+        } catch (e) {
+            toast.error("Erro ao realizar o desligamento.");
+        }
     };
 
     const aoPromoverOperador = (operador, loginLdap) => {
@@ -115,25 +197,27 @@ export default function Configuracoes() {
         setSelecaoModal({ ...selecaoModal, visivel: false });
     };
 
-const aoSelecionarTransferir = (operador) => {
-    setTransferModal({
-        visivel: true,
-        operadorId: operador.id,
-        operadorNome: operador.nome,
-        novoLiderId: operador.lider_id || '',
-        novoTurno: operador.turno || '',
-        novaLinhaId: operador.linha_principal_id || '',  
-        novoVinculo: operador.vinculo || ''
-    });
-    setSelecaoModal({ ...selecaoModal, visivel: false });
-};
+    const aoSelecionarTransferir = (operador) => {
+        setTransferModal({
+            visivel: true,
+            operadorId: operador.id,
+            operadorNome: operador.nome,
+            novoLiderId: operador.lider_id || '',
+            novoTurno: operador.turno || '',
+            novaLinhaId: operador.linha_principal_id || '',
+            novoVinculo: operador.vinculo || ''
+        });
+        setSelecaoModal({ ...selecaoModal, visivel: false });
+    };
 
     const confirmarTransferencia = () => {
-        const { operadorId, novoLiderId, novoTurno, novaLinhaId, novoVinculo } = transferModal;
-        if (!operadorId || !novoLiderId || !novoTurno || !novaLinhaId || !novoVinculo) {
-            toast.error("Preencha todos os campos da transferência, incluindo o vínculo!");
+        const { operadorId, novoLiderId, novoTurno, novaLinhaId, novoVinculo, novaDataMudanca } = transferModal;
+
+        if (!operadorId || !novoLiderId || !novoTurno || !novaLinhaId) {
+            toast.error("Preencha todos os campos obrigatórios da transferência!");
             return;
         }
+
         showConfirm(
             `🔄 Confirmar transferência/edição do operador "${transferModal.operadorNome}"?`,
             async () => {
@@ -142,7 +226,8 @@ const aoSelecionarTransferir = (operador) => {
                     novo_lider_id: novoLiderId,
                     novo_turno: novoTurno,
                     nova_linha_id: novaLinhaId,
-                    novo_vinculo: novoVinculo   // envia o novo vínculo
+                    novo_vinculo: novoVinculo || null, // Se for vazio, o backend ignora e mantém o atual
+                    nova_data_mudanca: novaDataMudanca // Envia a data que encerra o velho e abre o novo contrato
                 }, () => {
                     setTransferModal({
                         visivel: false,
@@ -151,7 +236,8 @@ const aoSelecionarTransferir = (operador) => {
                         novoLiderId: '',
                         novoTurno: '',
                         novaLinhaId: '',
-                        novoVinculo: ''
+                        novoVinculo: '',
+                        novaDataMudanca: new Date().toISOString().substring(0, 10)
                     });
                 });
             }
@@ -255,14 +341,14 @@ const aoSelecionarTransferir = (operador) => {
                         <h4>⚙️ Gerenciar Operadores</h4>
                         <div style={{ display: 'flex', gap: '15px', flexWrap: 'wrap', marginBottom: '15px' }}>
                             <button style={{ background: '#e74c3c', width: 'auto' }} onClick={() => {
-                                if (operadoresVisiveis.length === 0) return toast.error("Nenhum operador disponível para exclusão.");
+                                if (operadoresVisiveis.length === 0) return toast.error("Nenhum operador disponível para desligamento.");
                                 abrirSelecao(
-                                    "🗑️ Excluir Operador",
+                                    "🗑️ Desligar Operador",
                                     operadoresVisiveis,
                                     (op) => aoExcluirOperador(op),
-                                    "Selecione o operador que deseja excluir permanentemente."
+                                    "Selecione o operador que deseja desligar."
                                 );
-                            }}>🗑️ Excluir Operador</button>
+                            }}>🗑️ Desligar Operador</button>
 
                             <button style={{ background: '#f39c12', width: 'auto' }} onClick={() => {
                                 if (operadoresNaoLideres.length === 0) return toast.error("Nenhum operador disponível para promoção.");
@@ -308,6 +394,33 @@ const aoSelecionarTransferir = (operador) => {
                             </div>
                         </div>
                     )}
+
+                    {/* FERRAMENTAS RESTRITAS DO SISTEMA */}
+
+            {user.perfil === 'MASTER' && (
+                <div className="admin-card" style={{ background: '#fef9e7', borderLeft: '5px solid #f39c12', padding: '20px', borderRadius: '12px', marginBottom: '30px', boxShadow: '0 4px 10px rgba(0,0,0,0.05)' }}>
+                    <h3 style={{ color: '#d35400', margin: '0 0 10px 0', fontSize: '1.2em' }}>🛠️ Ferramentas Administrativas (MASTER)</h3>
+                    <p style={{ color: '#7f8c8d', fontSize: '0.9em', marginBottom: '20px' }}>
+                        Acesso restrito. Utilize estas opções para injetar ou corrigir dados no histórico da operação.
+                    </p>
+                    <div style={{ display: 'flex', gap: '15px', flexWrap: 'wrap' }}>
+                        <button 
+                            onClick={() => setRetroModal({ ...retroModal, visivel: true })}
+                            style={{ background: '#f39c12', color: 'white', fontWeight: 'bold', padding: '12px 20px', border: 'none', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}
+                        >
+                            <span style={{ fontSize: '1.2em' }}>📅</span> Lançar Absenteísmo Retroativo
+                        </button>
+                        
+                        {/* NOVO BOTÃO DE REMOÇÃO */}
+                        <button 
+                            onClick={() => setRemAbsModal({ visivel: true, colaboradorId: '' })}
+                            style={{ background: '#e74c3c', color: 'white', fontWeight: 'bold', padding: '12px 20px', border: 'none', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}
+                        >
+                            <span style={{ fontSize: '1.2em' }}>🗑️</span> Remover Falta (Corrigir Erro)
+                        </button>
+                    </div>
+                </div>
+            )}
                 </>
             )}
 
@@ -345,9 +458,9 @@ const aoSelecionarTransferir = (operador) => {
                                         justifyContent: 'space-between',
                                         alignItems: 'center'
                                     }}
-                                    onClick={() => selecaoModal.acaoConfirmar(item)}
-                                    onMouseEnter={e => e.currentTarget.style.backgroundColor = '#e9ecef'}
-                                    onMouseLeave={e => e.currentTarget.style.backgroundColor = '#f8f9fa'}>
+                                        onClick={() => selecaoModal.acaoConfirmar(item)}
+                                        onMouseEnter={e => e.currentTarget.style.backgroundColor = '#e9ecef'}
+                                        onMouseLeave={e => e.currentTarget.style.backgroundColor = '#f8f9fa'}>
                                         <div>
                                             <strong>{item.nome}</strong>
                                             <div style={{ fontSize: '0.8em', color: '#6c757d' }}>
@@ -371,50 +484,73 @@ const aoSelecionarTransferir = (operador) => {
             )}
 
             {/* MODAL DE TRANSFERÊNCIA / EDIÇÃO (ATUALIZADO COM VÍNCULO) */}
+            {/* Modal de Transferência / Edição Completa */}
             {transferModal.visivel && (
-                <div className="modal-overlay" style={{ display: 'flex', zIndex: 9999 }} onClick={(e) => {
-                    if (e.target.className.includes('modal-overlay')) setTransferModal({ ...transferModal, visivel: false });
-                }}>
-                    <div className="modal-box" style={{ width: '500px', padding: '30px' }}>
-                        <h3 style={{ marginTop: 0, color: '#f39c12' }}>🔄 Transferir / Editar Operador</h3>
-                        <p style={{ marginBottom: '20px' }}>Altere os dados de <strong>{transferModal.operadorNome}</strong>:</p>
+                <div className="modal-overlay" style={{ display: 'flex' }} onClick={(e) => { if (e.target.className.includes('modal-overlay')) setTransferModal({ ...transferModal, visivel: false }); }}>
+                    <div className="modal-box" style={{ width: '450px' }}>
+                        <h3>🔧 Editar Cadastro / Transferir</h3>
+                        <p style={{ color: '#7f8c8d', marginBottom: '20px' }}>Operador: <strong style={{ color: '#2c3e50' }}>{transferModal.operadorNome}</strong></p>
+
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
                             <div>
-                                <label style={{ fontWeight: 'bold', display: 'block', marginBottom: '5px' }}>Novo Líder:</label>
-                                <select value={transferModal.novoLiderId || ''} onChange={e => setTransferModal({ ...transferModal, novoLiderId: e.target.value })}>
-                                    <option value="">Selecione...</option>
+                                <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '5px' }}>Novo Líder:</label>
+                                <select value={transferModal.novoLiderId} onChange={e => setTransferModal({ ...transferModal, novoLiderId: e.target.value })} style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #ccc' }}>
                                     {db.lideres.map(l => <option key={l.id} value={l.id}>{l.nome}</option>)}
                                 </select>
                             </div>
-                            <div>
-                                <label style={{ fontWeight: 'bold', display: 'block', marginBottom: '5px' }}>Novo Turno:</label>
-                                <select value={transferModal.novoTurno || ''} onChange={e => setTransferModal({ ...transferModal, novoTurno: e.target.value })}>
-                                    <option value="">Selecione...</option>
-                                    <option value="T1">Turno 1</option>
-                                    <option value="T2">Turno 2</option>
-                                </select>
+
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+                                <div>
+                                    <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '5px' }}>Nova Linha:</label>
+                                    <select value={transferModal.novaLinhaId} onChange={e => setTransferModal({ ...transferModal, novaLinhaId: e.target.value })} style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #ccc' }}>
+                                        {db.linhas.map(l => <option key={l.id} value={l.id}>{l.nome}</option>)}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '5px' }}>Novo Turno:</label>
+                                    <select value={transferModal.novoTurno} onChange={e => setTransferModal({ ...transferModal, novoTurno: e.target.value })} style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #ccc' }}>
+                                        <option value="T1">T1</option>
+                                        <option value="T2">T2</option>
+                                        <option value="T3">T3</option>
+                                    </select>
+                                </div>
                             </div>
-                            <div>
-                                <label style={{ fontWeight: 'bold', display: 'block', marginBottom: '5px' }}>Nova Linha:</label>
-                                <select value={transferModal.novaLinhaId || ''} onChange={e => setTransferModal({ ...transferModal, novaLinhaId: e.target.value })}>
-                                    <option value="">Selecione...</option>
-                                    {db.linhas.map(l => <option key={l.id} value={l.id}>{l.nome}</option>)}
-                                </select>
-                            </div>
-                            <div>
-                                <label style={{ fontWeight: 'bold', display: 'block', marginBottom: '5px' }}>Novo Vínculo:</label>
-                                <select value={transferModal.novoVinculo || ''} onChange={e => setTransferModal({ ...transferModal, novoVinculo: e.target.value })}>
-                                    <option value="">Selecione...</option>
-                                    <option value="Efetivo">Efetivo</option>
-                                    <option value="Temporário Manpower">Temporário Manpower</option>
-                                    <option value="Temporário We Can">Temporário We Can</option>
-                                    <option value="CTD">CTD</option>
-                                </select>
+
+                            <hr style={{ border: 'none', borderTop: '1px dashed #bdc3c7', margin: '10px 0' }} />
+
+                            {/* NOVA SECÇÃO: CONTRATOS */}
+                            <div style={{ background: '#f8f9fa', padding: '15px', borderRadius: '8px', borderLeft: '4px solid #3498db' }}>
+                                <p style={{ margin: '0 0 10px 0', fontSize: '0.85em', color: '#e74c3c', fontWeight: 'bold' }}>
+                                    ⚠️ Alterar o Vínculo encerrará o contrato atual e iniciará um novo contrato na data escolhida.
+                                </p>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '15px' }}>
+                                    <div>
+                                        <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '5px', fontSize: '0.9em' }}>Status do Vínculo:</label>
+                                        <select value={transferModal.novoVinculo} onChange={e => setTransferModal({ ...transferModal, novoVinculo: e.target.value })} style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #ccc' }}>
+                                            <option value="">Manter Atual (Ignorar)</option>
+                                            <option value="Efetivo">Efetivo</option>
+                                            <option value="CTD">CTD</option>
+                                            <option value="Temporário Man Power">Temporário Man Power</option>
+                                            <option value="Temporário We Can">Temporário We Can</option>
+                                            <option value="Temporário">Temporário (Outros)</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '5px', fontSize: '0.9em' }}>Data da Alteração:</label>
+                                        <input
+                                            type="date"
+                                            value={transferModal.novaDataMudanca}
+                                            onChange={e => setTransferModal({ ...transferModal, novaDataMudanca: e.target.value })}
+                                            style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #ccc', boxSizing: 'border-box' }}
+                                        />
+                                    </div>
+                                </div>
                             </div>
                         </div>
-                        <div style={{ display: 'flex', gap: '10px', marginTop: '25px', justifyContent: 'flex-end' }}>
-                            <button onClick={() => setTransferModal({ ...transferModal, visivel: false })} style={{ background: '#ecf0f1', color: '#2c3e50', width: 'auto' }}>Cancelar</button>
-                            <button onClick={confirmarTransferencia} style={{ background: '#f39c12', width: 'auto' }}>Confirmar Alterações</button>
+
+                        <div className="modal-actions" style={{ marginTop: '25px', display: 'flex', gap: '15px', justifyContent: 'flex-end' }}>
+                            <button onClick={() => setTransferModal({ ...transferModal, visivel: false })} style={{ background: '#ecf0f1', color: '#7f8c8d', padding: '10px 20px', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>Cancelar</button>
+                            <button onClick={confirmarTransferencia} style={{ background: '#2980b9', color: 'white', padding: '10px 20px', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>💾 Salvar Alterações</button>
                         </div>
                     </div>
                 </div>
@@ -452,7 +588,7 @@ const aoSelecionarTransferir = (operador) => {
 
             {/* MODAL DE CONFIRMAÇÃO GENÉRICO */}
             {confirmModal.isOpen && (
-                <div className="modal-overlay" style={{ display: 'flex', zIndex: 9999 }} onClick={(e) => {
+                <div className="modal-overlay" style={{ display: 'flex', zIndex: 99999 }} onClick={(e) => {
                     if (e.target.className.includes('modal-overlay')) {
                         if (confirmModal.onCancel) confirmModal.onCancel();
                         setConfirmModal({ ...confirmModal, isOpen: false });
@@ -475,6 +611,143 @@ const aoSelecionarTransferir = (operador) => {
                     </div>
                 </div>
             )}
+
+            {/* Modal de Desligamento / Exclusão */}
+            {demissaoModal.visivel && (
+                <div className="modal-overlay" style={{ display: 'flex', zIndex: 9999 }} onClick={(e) => { if (e.target.className.includes('modal-overlay')) setDemissaoModal({ ...demissaoModal, visivel: false }); }}>
+                    <div className="modal-box" style={{ width: '400px', borderTop: '5px solid #e74c3c' }}>
+                        <h3>🚨 Desligamento de Colaborador</h3>
+                        <p style={{ color: '#7f8c8d', marginBottom: '15px' }}>
+                            Você está prestes a desligar: <strong style={{ color: '#c0392b' }}>{demissaoModal.operadorNome}</strong>.
+                        </p>
+                        <p style={{ fontSize: '0.85em', color: '#2c3e50', background: '#fdf2e9', padding: '10px', borderRadius: '6px', marginBottom: '20px' }}>
+                            O colaborador será inativado, mas o seu histórico de faltas, contratos e produtividade será preservado na base de dados para estatísticas.
+                        </p>
+                        
+                        <div style={{ marginBottom: '25px' }}>
+                            <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '5px', fontSize: '0.9em' }}>Data Oficial de Desligamento:</label>
+                            <input 
+                                type="date" 
+                                value={demissaoModal.dataDemissao} 
+                                onChange={e => setDemissaoModal({ ...demissaoModal, dataDemissao: e.target.value })} 
+                                style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #ccc', boxSizing: 'border-box' }}
+                            />
+                        </div>
+
+                        <div className="modal-actions" style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+                            <button onClick={() => setDemissaoModal({ ...demissaoModal, visivel: false })} style={{ background: '#ecf0f1', color: '#7f8c8d', padding: '10px 20px', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>Cancelar</button>
+                            <button onClick={confirmarDesligamento} style={{ background: '#e74c3c', color: 'white', padding: '10px 20px', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>✔️ Confirmar Desligamento</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Modal de Lançamento Retroativo */}
+            {retroModal.visivel && (
+                <div className="modal-overlay" style={{ display: 'flex', zIndex: 9999 }} onClick={(e) => { if (e.target.className.includes('modal-overlay')) setRetroModal({ ...retroModal, visivel: false }); }}>
+                    <div className="modal-box" style={{ width: '450px', borderTop: '5px solid #f39c12' }}>
+                        <h3>📅 Lançamento Retroativo</h3>
+                        <p style={{ color: '#7f8c8d', marginBottom: '20px', fontSize: '0.9em' }}>Insira uma falta passada diretamente no histórico do operador sem afetar o status atual dele na fábrica.</p>
+                        
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                            <div>
+                                <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '5px' }}>Operador:</label>
+                                <select 
+                                    value={retroModal.colaboradorId} 
+                                    onChange={e => setRetroModal({ ...retroModal, colaboradorId: e.target.value })} 
+                                    style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #ccc' }}
+                                >
+                                    <option value="">Selecione um operador...</option>
+                                    {db.operadores.map(op => <option key={op.id} value={op.id}>{op.nome}</option>)}
+                                </select>
+                            </div>
+                            <div>
+                                <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '5px' }}>Data da Falta / Ocorrência:</label>
+                                <input 
+                                    type="date" 
+                                    value={retroModal.dataFalta} 
+                                    onChange={e => setRetroModal({ ...retroModal, dataFalta: e.target.value })} 
+                                    style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #ccc', boxSizing: 'border-box' }}
+                                />
+                            </div>
+                            <div>
+                                <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '5px' }}>Motivo / Justificativa Oficial:</label>
+                                <select 
+                                    value={retroModal.motivo} 
+                                    onChange={e => setRetroModal({ ...retroModal, motivo: e.target.value })} 
+                                    style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #ccc' }}
+                                >
+                                    <option value="">Selecione o motivo...</option>
+                                    <option value="Atestado Médico">Atestado Médico</option>
+                                    <option value="Falta Injustificada">Falta Injustificada</option>
+                                    <option value="Problema Pessoal / Familiar">Problema Pessoal / Familiar</option>
+                                    <option value="Problema de Transporte">Problema de Transporte</option>
+                                    <option value="Banco de Horas / Folga">Folga / Banco de Horas</option>
+                                    <option value="Atraso (Bloqueado na Catraca)">Atraso Maior que o Permitido</option>
+                                    <option value="Outros">Outros</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div className="modal-actions" style={{ marginTop: '25px', display: 'flex', gap: '15px', justifyContent: 'flex-end' }}>
+                            <button onClick={() => setRetroModal({ ...retroModal, visivel: false })} style={{ background: '#ecf0f1', color: '#7f8c8d', padding: '10px 20px', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>Cancelar</button>
+                            <button onClick={executarLancamentoRetroativo} style={{ background: '#f39c12', color: 'white', padding: '10px 20px', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>💾 Lançar Falta</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Modal de Remoção de Absenteísmo */}
+            {remAbsModal.visivel && (
+                <div className="modal-overlay" style={{ display: 'flex', zIndex: 1000 }} onClick={(e) => { if (e.target.className.includes('modal-overlay')) setRemAbsModal({ ...remAbsModal, visivel: false }); }}>
+                    <div className="modal-box" style={{ width: '500px', borderTop: '5px solid #e74c3c', maxHeight: '85vh', display: 'flex', flexDirection: 'column' }}>
+                        <h3>🗑️ Corrigir / Remover Falta</h3>
+                        <p style={{ color: '#7f8c8d', marginBottom: '15px', fontSize: '0.9em' }}>Selecione o operador para visualizar e apagar faltas lançadas indevidamente.</p>
+                        
+                        <div style={{ marginBottom: '15px' }}>
+                            <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '5px' }}>Pesquisar Operador:</label>
+                            <select 
+                                value={remAbsModal.colaboradorId} 
+                                onChange={e => setRemAbsModal({ ...remAbsModal, colaboradorId: e.target.value })} 
+                                style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #ccc' }}
+                            >
+                                <option value="">Selecione...</option>
+                                {db.operadores.map(op => <option key={op.id} value={op.id}>{op.nome}</option>)}
+                            </select>
+                        </div>
+
+                        {/* LISTA DE FALTAS DINÂMICA */}
+                        {remAbsModal.colaboradorId && (
+                            <div style={{ flex: 1, overflowY: 'auto', background: '#f8f9fa', padding: '10px', borderRadius: '8px', border: '1px solid #ecf0f1' }}>
+                                <h4 style={{ margin: '0 0 10px 0', color: '#2c3e50' }}>Histórico Registado ({faltasOpSelecionado.length}):</h4>
+                                {faltasOpSelecionado.length === 0 ? (
+                                    <p style={{ color: '#7f8c8d', fontSize: '0.9em', textAlign: 'center', marginTop: '20px' }}>Nenhuma falta encontrada para este operador.</p>
+                                ) : (
+                                    faltasOpSelecionado.map((f, idx) => (
+                                        <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'white', padding: '10px', marginBottom: '8px', borderRadius: '6px', border: '1px solid #dfe6e9' }}>
+                                            <div>
+                                                <div style={{ fontWeight: 'bold', color: '#34495e' }}>{f.data.split('-').reverse().join('/')}</div>
+                                                <div style={{ fontSize: '0.8em', color: '#e67e22' }}>{f.motivo}</div>
+                                            </div>
+                                            <button 
+                                                onClick={() => executarRemocaoAbs(f.data)}
+                                                style={{ background: '#e74c3c', color: 'white', border: 'none', padding: '6px 12px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.8em' }}
+                                            >
+                                                Remover
+                                            </button>
+                                        </div>
+                                    ))
+                                )}
+                            </div>
+                        )}
+
+                        <div className="modal-actions" style={{ marginTop: '20px', display: 'flex', justifyContent: 'flex-end' }}>
+                            <button onClick={() => setRemAbsModal({ ...remAbsModal, visivel: false })} style={{ background: '#ecf0f1', color: '#7f8c8d', padding: '10px 20px', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>Fechar</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
         </div>
     );
 }
